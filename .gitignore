@@ -1,0 +1,32 @@
+Python bytecode and cache
+
+pycache/
+*.pyc
+
+Virtual Environment folder
+
+If you named it something else, change 'venv'
+
+venv/
+env/
+.venv/
+.env/
+
+Local database file
+
+We are using a remote DB on Render, so we never need to commit this.
+
+db.sqlite3
+*.sqlite3
+
+Static files directory collected by Django
+
+Render will generate this folder on its own during the build process.
+
+staticfiles/
+
+IDE and OS specific files
+
+.vscode/
+.idea/
+*.DS_Store
