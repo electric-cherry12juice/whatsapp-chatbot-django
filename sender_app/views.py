@@ -2,7 +2,7 @@ import requests
 import json
 from django.shortcuts import render
 from django.conf import settings
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 
 def send_message_view(request: HttpRequest) -> HttpResponse:
     """
@@ -80,4 +80,8 @@ def send_message_view(request: HttpRequest) -> HttpResponse:
 
 
     return render(request, "sender_app/index.html", context)
+
+def health_check_view(request):
+    """A simple view that returns a 200 OK response."""
+    return JsonResponse({"status": "ok"})
 

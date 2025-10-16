@@ -12,5 +12,8 @@ urlpatterns = [
     # The 'name' argument gives this URL a unique identifier,
     # which is useful for referring to it elsewhere in the Django project.
     path("", views.send_message_view, name="send_message"),
+    path('webhook', views.webhook_view, name='webhook'),
+    # Add this new line for the health check
+    path('health/', views.health_check_view, name='health_check'),
 ]
 
