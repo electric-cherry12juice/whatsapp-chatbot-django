@@ -9,7 +9,6 @@
         .login-container { background-color: #242f3d; padding: 40px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; width: 320px; }
         h1 { margin-bottom: 20px; font-weight: 500; }
         p { color: #a3b0c1; margin-bottom: 30px; }
-        input[type="text"] { width: calc(100% - 20px); padding: 12px; margin-bottom: 20px; border: 1px solid #3a4b5f; background-color: #1a222c; color: #fff; border-radius: 5px; font-size: 16px; }
         button { width: 100%; padding: 12px; background-color: #3e95e1; color: #fff; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; transition: background-color 0.2s; }
         button:hover { background-color: #4a9fe9; }
         .error { color: #ff6b6b; margin-top: 15px; }
@@ -17,12 +16,11 @@
 </head>
 <body>
     <div class="login-container">
-        <h1>Welcome Back</h1>
-        <p>Enter your phone number to receive a login code via WhatsApp.</p>
+        <h1>Admin Access</h1>
+        <p>Click the button to send a login code to the administrator's WhatsApp.</p>
         <form method="post">
             {% csrf_token %}
-            <input type="text" name="phone_number" placeholder="e.g., 77071234567" required>
-            <button type="submit">Send Code</button>
+            <button type="submit">Request Login Code</button>
         </form>
         {% if error %}
             <p class="error">{{ error }}</p>

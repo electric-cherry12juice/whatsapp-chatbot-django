@@ -9,7 +9,7 @@
         .login-container { background-color: #242f3d; padding: 40px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; width: 320px; }
         h1 { margin-bottom: 10px; font-weight: 500; }
         p { color: #a3b0c1; margin-bottom: 30px; }
-        input[type="text"] { width: calc(100% - 20px); padding: 12px; margin-bottom: 20px; border: 1px solid #3a4b5f; background-color: #1a222c; color: #fff; border-radius: 5px; font-size: 16px; text-align: center; letter-spacing: 0.5em; }
+        input[type="text"] { width: calc(100% - 24px); padding: 12px; margin-bottom: 20px; border: 1px solid #3a4b5f; background-color: #1a222c; color: #fff; border-radius: 5px; font-size: 16px; text-align: center; letter-spacing: 0.5em; }
         button { width: 100%; padding: 12px; background-color: #3e95e1; color: #fff; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; transition: background-color 0.2s; }
         button:hover { background-color: #4a9fe9; }
         .error { color: #ff6b6b; margin-top: 15px; }
@@ -18,11 +18,11 @@
 <body>
     <div class="login-container">
         <h1>Enter Code</h1>
-        <p>We sent a verification code to {{ phone_number }}.</p>
+        <p>A login code has been sent to the administrator's WhatsApp. <br/>Please enter it below.</p>
         <form method="post">
             {% csrf_token %}
-            <input type="text" name="otp_code" maxlength="6" placeholder="_ _ _ _ _ _" required>
-            <button type="submit">Verify</button>
+            <input type="text" name="otp_code" maxlength="6" placeholder="_ _ _ _ _ _" required autofocus>
+            <button type="submit">Verify & Login</button>
         </form>
         {% if error %}
             <p class="error">{{ error }}</p>

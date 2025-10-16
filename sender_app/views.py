@@ -16,7 +16,7 @@ from .models import ChatMessage
 meta_api_logger = logging.getLogger('meta_api_logger')
 
 # --- Helper Function for sending OTP to Admin ---
-def send_otp_to_admin(username, code):
+def send_otp_to_admin(code):
     admin_number = settings.ADMIN_PHONE_NUMBER
     if not admin_number:
         meta_api_logger.critical("ADMIN_PHONE_NUMBER is not set in environment variables!")
@@ -32,18 +32,15 @@ def send_otp_to_admin(username, code):
         "Content-Type": "application/json",
     }
     
-    # --- THIS IS THE MODIFIED PART ---
-    # We now construct a standard text message instead of a template.
-    message_body = f"Login request from user: {username}\nYour verification code is: {code}"
+    message_body = f"Your login verification code is: {code}"
     payload = {
         "messaging_product": "whatsapp",
         "to": admin_number,
         "type": "text",
         "text": {"body": message_body},
     }
-    # --- END OF MODIFICATION ---
     
-    meta_api_logger.info(f"Sending OTP to ADMIN for user '{username}'. Payload: {json.dumps(payload)}")
+    meta_api_logger.info(f"Sending OTP to ADMIN. Payload: {json.dumps(payload)}")
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=15)
         meta_api_logger.info(f"OTP Send Response to ADMIN: Status {response.status_code}, Body: {response.text}")
@@ -58,23 +55,18 @@ def login_view(request):
         return redirect('contact_list')
         
     if request.method == 'POST':
-        username = request.POST.get('username')
-        if username:
-            otp_code = random.randint(100000, 999999)
-            request.session['otp_code_for_verification'] = otp_code
-            request.session['username_for_verification'] = username
-            
-            if send_otp_to_admin(username, otp_code):
-                return redirect(reverse('verify_view'))
-            else:
-                return render(request, 'sender_app/login.html', {'error': 'Could not send verification code to administrator.'})
+        otp_code = random.randint(100000, 999999)
+        request.session['otp_code_for_verification'] = otp_code
+        
+        if send_otp_to_admin(otp_code):
+            return redirect(reverse('verify_view'))
         else:
-            return render(request, 'sender_app/login.html', {'error': 'Please enter a username.'})
+            return render(request, 'sender_app/login.html', {'error': 'Could not send verification code to administrator.'})
+
     return render(request, 'sender_app/login.html')
 
 def verify_view(request):
-    username = request.session.get('username_for_verification')
-    if not username:
+    if 'otp_code_for_verification' not in request.session:
         return redirect(reverse('login_view'))
 
     if request.method == 'POST':
@@ -83,13 +75,13 @@ def verify_view(request):
 
         if entered_code and stored_code and int(entered_code) == stored_code:
             request.session['is_authenticated'] = True
-            request.session['authenticated_user'] = username
+            request.session['authenticated_user'] = "Admin" # Generic user for display
             del request.session['otp_code_for_verification']
-            del request.session['username_for_verification']
             return redirect(reverse('contact_list'))
         else:
-            return render(request, 'sender_app/verify.html', {'error': 'Invalid code.', 'username': username})
-    return render(request, 'sender_app/verify.html', {'username': username})
+            return render(request, 'sender_app/verify.html', {'error': 'Invalid code.'})
+            
+    return render(request, 'sender_app/verify.html')
 
 def logout_view(request):
     request.session.flush()
