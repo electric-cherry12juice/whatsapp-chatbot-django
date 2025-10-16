@@ -15,6 +15,9 @@ from .models import ChatMessage
 # Get our custom logger
 meta_api_logger = logging.getLogger('meta_api_logger')
 
+
+
+
 # --- Helper Function for sending OTP to Admin (No changes needed here) ---
 def send_otp_to_admin(code):
     # This function remains the same
@@ -102,6 +105,76 @@ def get_chat_history_json(request, phone_number):
     messages = ChatMessage.objects.filter(sender_id=phone_number).order_by('timestamp')
     message_list = list(messages.values('message_text', 'is_from_user'))
     return JsonResponse({'messages': message_list})
+
+
+def send_template_message(phone_number, template_name):
+    """
+    Sends a pre-approved template message to a new number.
+    This also serves as a way to validate if the number exists on WhatsApp.
+    """
+    access_token = os.environ.get('WHATSAPP_ACCESS_TOKEN')
+    phone_number_id = os.environ.get('WHATSAPP_PHONE_NUMBER_ID')
+    version = os.environ.get('WHATSAPP_API_VERSION', 'v20.0')
+    url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": phone_number,
+        "type": "template",
+        "template": {"name": template_name, "language": {"code": "en_US"}},
+    }
+    meta_api_logger.info(f"Starting new chat with {phone_number}. Payload: {json.dumps(payload)}")
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=15)
+        response_data = response.json()
+        meta_api_logger.info(f"Start Chat Response for {phone_number}: Status {response.status_code}, Body: {response.text}")
+
+        if response.status_code == 200:
+            return {'success': True, 'data': response_data}
+        else:
+            # Check for specific error indicating invalid number
+            error_message = response_data.get('error', {}).get('message', 'An unknown error occurred.')
+            if "not a valid WhatsApp user" in error_message or "Recipient phone number not in allowed list" in error_message:
+                 return {'success': False, 'error': 'This phone number is not a valid WhatsApp user.'}
+            return {'success': False, 'error': error_message}
+
+    except requests.exceptions.RequestException as e:
+        meta_api_logger.error(f"Start Chat Request failed for {phone_number}: {e}")
+        return {'success': False, 'error': 'A network error occurred.'}
+
+
+
+
+
+@custom_login_required
+def start_new_chat_view(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        phone_number = data.get('phone_number')
+        template_name = data.get('template_name')
+
+        if not phone_number or not template_name:
+            return JsonResponse({'success': False, 'error': 'Phone number and template name are required.'}, status=400)
+
+        result = send_template_message(phone_number, template_name)
+
+        if result['success']:
+            # Create a placeholder message in our DB
+            ChatMessage.objects.create(
+                sender_id=phone_number,
+                message_text=f"Started chat with template: '{template_name}'",
+                is_from_user=False
+            )
+            return JsonResponse({'success': True, 'phone_number': phone_number})
+        else:
+            return JsonResponse({'success': False, 'error': result['error']}, status=400)
+
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+
+
+
+
 
 # --- Webhook (No changes needed) ---
 @csrf_exempt
