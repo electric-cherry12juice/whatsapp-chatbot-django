@@ -1,50 +1,59 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8"/>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat with {{ phone_number }}</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #e5ddd5; margin: 0; }
-        .chat-container { max-width: 800px; margin: 0 auto; background: #fff; display: flex; flex-direction: column; height: 100vh; }
-        .chat-header { padding: 10px 15px; background-color: #f0f2f5; border-bottom: 1px solid #ddd; display: flex; align-items: center; }
-        .chat-header a { text-decoration: none; color: #007bff; margin-right: 15px; }
-        .chat-header h1 { margin: 0; font-size: 1.2rem; color: #111b21; }
-        #chat-log { flex-grow: 1; padding: 1rem; overflow-y: auto; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
-        .message { display: flex; margin-bottom: 0.75rem; }
-        .message-bubble { max-width: 70%; padding: 8px 12px; border-radius: 7.5px; line-height: 1.4; box-shadow: 0 1px 0.5px rgba(11,20,26,.13); }
-        .sent { justify-content: flex-end; }
-        .received { justify-content: flex-start; }
-        .sent .message-bubble { background-color: #d9fdd3; }
-        .received .message-bubble { background-color: #ffffff; }
-        .chat-input-form { display: flex; padding: 10px; background-color: #f0f2f5; }
-        #chat-message-input { flex-grow: 1; border: 1px solid #ddd; border-radius: 20px; padding: 10px 15px; font-size: 1rem; resize: none; }
-        #chat-message-submit { background-color: #00a884; color: white; border: none; border-radius: 50%; width: 45px; height: 45px; font-size: 1.5rem; margin-left: 10px; cursor: pointer; }
+        :root {
+            --bg-color: #0e1621;
+            --sidebar-bg: #17212b;
+            --header-bg: #242f3d;
+            --text-color: #fff;
+            --text-secondary: #a3b0c1;
+            --bubble-out: #2b5278;
+            --bubble-in: #262d31;
+            --input-bg: #242f3d;
+            --send-btn-color: #3e95e1;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; display: flex; height: 100vh; overflow: hidden;}
+        .chat-container { display: flex; flex-direction: column; width: 100%; height: 100%; }
+        .chat-header { background-color: var(--header-bg); padding: 15px 20px; display: flex; align-items: center; border-bottom: 1px solid var(--bg-color); }
+        .back-link { color: var(--text-color); text-decoration: none; font-size: 24px; margin-right: 20px; }
+        .chat-header h2 { margin: 0; font-size: 18px; font-weight: 600; }
+        .chat-messages { flex-grow: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
+        .message-bubble { max-width: 65%; padding: 10px 15px; border-radius: 20px; margin-bottom: 10px; line-height: 1.4; word-wrap: break-word; }
+        .message-bubble.sent { background-color: var(--bubble-out); align-self: flex-end; border-bottom-right-radius: 5px; }
+        .message-bubble.received { background-color: var(--bubble-in); align-self: flex-start; border-bottom-left-radius: 5px; }
+        .chat-input-area { background-color: var(--header-bg); padding: 15px; display: flex; align-items: center; border-top: 1px solid var(--bg-color); }
+        .chat-input-area input { flex-grow: 1; border: none; background-color: var(--input-bg); color: var(--text-color); padding: 12px 15px; border-radius: 20px; font-size: 16px; outline: none; }
+        .chat-input-area input::placeholder { color: var(--text-secondary); }
+        .chat-input-area button { background: none; border: none; color: var(--send-btn-color); font-size: 24px; margin-left: 15px; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <a href="{% url 'contact_list' %}">&larr; Back</a>
-            <h1>{{ phone_number }}</h1>
+            <a href="{% url 'contact_list' %}" class="back-link">&larr;</a>
+            <h2>{{ phone_number }}</h2>
         </div>
-        <div id="chat-log">
+        <div class="chat-messages" id="chat-log">
             {% for message in messages %}
-                <div class="message {% if message.is_from_user %}received{% else %}sent{% endif %}">
-                    <div class="message-bubble">{{ message.message_text }}</div>
+                <div class="message-bubble {% if message.is_from_user %}received{% else %}sent{% endif %}">
+                    {{ message.message_text }}
                 </div>
             {% endfor %}
         </div>
-        <div class="chat-input-form">
-            <textarea id="chat-message-input" rows="1"></textarea>
-            <button id="chat-message-submit">&rarr;</button>
+        <div class="chat-input-area">
+            <input type="text" id="chat-message-input" placeholder="Message..." autocomplete="off">
+            <button id="chat-message-submit">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M1.101 21.757L23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"></path></svg>
+            </button>
         </div>
     </div>
 
-    {{ phone_number|json_script:"room-phone-number" }}
-
     <script>
-        const phoneNumber = JSON.parse(document.getElementById('room-phone-number').textContent);
+        const phoneNumber = {{ phone_number|json_script:"phone-number" }};
         const chatLog = document.getElementById('chat-log');
         const messageInput = document.getElementById('chat-message-input');
         const messageSubmit = document.getElementById('chat-message-submit');
@@ -54,23 +63,18 @@
         }
         scrollToBottom();
 
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
         const chatSocket = new WebSocket(
-            (window.location.protocol === 'https:' ? 'wss://' : 'ws://') +
-            window.location.host +
-            '/ws/chat/' + phoneNumber + '/'
+            protocol + '://' + window.location.host + '/ws/chat/' + phoneNumber + '/'
         );
 
         chatSocket.onmessage = function(e) {
             const data = JSON.parse(e.data);
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message ' + (data.is_from_user ? 'received' : 'sent');
-            
-            const bubbleDiv = document.createElement('div');
-            bubbleDiv.className = 'message-bubble';
-            bubbleDiv.textContent = data.message;
-            
-            messageDiv.appendChild(bubbleDiv);
-            chatLog.appendChild(messageDiv);
+            const bubble = document.createElement('div');
+            bubble.classList.add('message-bubble');
+            bubble.classList.add(data.is_from_user ? 'received' : 'sent');
+            bubble.textContent = data.message;
+            chatLog.appendChild(bubble);
             scrollToBottom();
         };
 
@@ -78,23 +82,24 @@
             console.error('Chat socket closed unexpectedly');
         };
 
-        messageInput.focus();
-        messageInput.onkeyup = function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) { // Send on Enter, new line on Shift+Enter
-                e.preventDefault();
-                messageSubmit.click();
-            }
-        };
-
-        messageSubmit.onclick = function(e) {
+        function sendMessage() {
             const message = messageInput.value;
-            if (message.trim() === '') return;
+            if (message.trim() !== '') {
+                chatSocket.send(JSON.stringify({
+                    'message': message,
+                    'type': 'text' // For now, we only send text. We could add a toggle for 'template'.
+                }));
+                messageInput.value = '';
+            }
+        }
 
-            chatSocket.send(JSON.stringify({
-                'message': message
-            }));
-            messageInput.value = '';
-        };
+        messageSubmit.onclick = sendMessage;
+        messageInput.addEventListener('keyup', function(e) {
+            if (e.keyCode === 13) { // Enter key
+                sendMessage();
+            }
+        });
     </script>
 </body>
 </html>
+

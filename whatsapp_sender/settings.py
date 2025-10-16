@@ -149,3 +149,34 @@ WHATSAPP_API_VERSION = os.environ.get('WHATSAPP_API_VERSION')
 WHATSAPP_PHONE_NUMBER_ID = os.environ.get('WHATSAPP_PHONE_NUMBER_ID')
 WHATSAPP_ACCESS_TOKEN = os.environ.get('WHATSAPP_ACCESS_TOKEN')
 WHATSAPP_WEBHOOK_VERIFY_TOKEN = os.environ.get('WHATSAPP_WEBHOOK_VERIFY_TOKEN')
+ADMIN_PHONE_NUMBER = os.environ.get('ADMIN_PHONE_NUMBER')
+
+# Session duration: 11 hours in seconds (11 * 60 * 60)
+SESSION_COOKIE_AGE = 39600
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'api_log_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'meta_api.log'), # Creates the log file in the project root
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'meta_api_logger': { # Our custom logger
+            'handlers': ['api_log_file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}

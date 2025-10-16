@@ -2,27 +2,51 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>WhatsApp Chats</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chats</title>
     <style>
-        body { font-family: sans-serif; background-color: #f0f2f5; }
-        .container { max-width: 400px; margin: 2rem auto; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .header { background-color: #00a884; color: white; padding: 1rem; border-top-left-radius: 8px; border-top-right-radius: 8px; }
-        .contact-list { list-style: none; padding: 0; margin: 0; }
-        .contact-list li a { display: block; padding: 1rem; border-bottom: 1px solid #f0f2f5; text-decoration: none; color: #111b21; font-weight: bold; }
-        .contact-list li:last-child a { border-bottom: none; }
-        .contact-list li a:hover { background-color: #f5f6f6; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0e1621; color: #fff; margin: 0; display: flex; height: 100vh; }
+        .sidebar { width: 350px; background-color: #17212b; border-right: 1px solid #242f3d; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 15px; background-color: #242f3d; display: flex; justify-content: space-between; align-items: center; }
+        .sidebar-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
+        .logout-btn { color: #a3b0c1; text-decoration: none; font-size: 14px; }
+        .contact-list { list-style-type: none; padding: 0; margin: 0; overflow-y: auto; flex-grow: 1; }
+        .contact-list a { text-decoration: none; color: inherit; }
+        .contact-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #242f3d; cursor: pointer; transition: background-color 0.2s; }
+        .contact-item:hover { background-color: #242f3d; }
+        .contact-avatar { width: 50px; height: 50px; border-radius: 50%; background-color: #3e95e1; display: flex; justify-content: center; align-items: center; margin-right: 15px; font-size: 20px; font-weight: bold; }
+        .contact-info { display: flex; flex-direction: column; }
+        .contact-name { font-weight: 600; }
+        .main-content { flex-grow: 1; display: flex; justify-content: center; align-items: center; text-align: center; }
+        .main-content p { font-size: 18px; color: #a3b0c1; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header"><h1>Chats</h1></div>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2>Chats</h2>
+            <a href="{% url 'logout_view' %}" class="logout-btn">Logout</a>
+        </div>
         <ul class="contact-list">
             {% for contact in contacts %}
-                <li><a href="{% url 'chat_room' contact %}">{{ contact }}</a></li>
+            <a href="{% url 'chat_room' contact %}">
+                <li class="contact-item">
+                    <div class="contact-avatar">
+                        {{ contact|slice:"-2:" }}
+                    </div>
+                    <div class="contact-info">
+                        <span class="contact-name">{{ contact }}</span>
+                    </div>
+                </li>
+            </a>
             {% empty %}
-                <li><a href="#">No conversations yet.</a></li>
+                <li style="text-align: center; padding: 20px; color: #a3b0c1;">No chats yet.</li>
             {% endfor %}
         </ul>
     </div>
+    <div class="main-content">
+        <p>Select a chat to start messaging</p>
+    </div>
 </body>
 </html>
+
