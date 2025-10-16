@@ -16,15 +16,13 @@ from .models import ChatMessage
 meta_api_logger = logging.getLogger('meta_api_logger')
 
 
-
-
-# --- Helper Function for sending OTP to Admin (No changes needed here) ---
+# --- Helper Function to Send OTP to Admin ---
 def send_otp_to_admin(code):
-    # This function remains the same
     admin_number = settings.ADMIN_PHONE_NUMBER
     if not admin_number:
         meta_api_logger.critical("ADMIN_PHONE_NUMBER is not set in environment variables!")
         return False
+    # ... rest of the function is the same ...
     access_token = os.environ.get('WHATSAPP_ACCESS_TOKEN')
     phone_number_id = os.environ.get('WHATSAPP_PHONE_NUMBER_ID')
     version = os.environ.get('WHATSAPP_API_VERSION', 'v20.0')
@@ -41,11 +39,10 @@ def send_otp_to_admin(code):
         meta_api_logger.error(f"OTP Send Request failed for ADMIN: {e}")
         return False
 
-# --- Authentication Views (No changes needed here) ---
+# --- Authentication Views ---
 def login_view(request):
-    # This view remains the same
     if request.session.get('is_authenticated'):
-        return redirect('chat_interface')
+        return redirect('chat_interface') # Redirect to chat if already logged in
     if request.method == 'POST':
         otp_code = random.randint(100000, 999999)
         request.session['otp_code_for_verification'] = otp_code
@@ -56,7 +53,6 @@ def login_view(request):
     return render(request, 'sender_app/login.html')
 
 def verify_view(request):
-    # This view remains the same
     if 'otp_code_for_verification' not in request.session:
         return redirect(reverse('login_view'))
     if request.method == 'POST':
@@ -65,6 +61,7 @@ def verify_view(request):
         if entered_code and stored_code and int(entered_code) == stored_code:
             request.session['is_authenticated'] = True
             request.session['authenticated_user'] = "Admin"
+            request.session.set_expiry(60 * 60 * 11) # 11 hours
             del request.session['otp_code_for_verification']
             return redirect(reverse('chat_interface'))
         else:
@@ -83,68 +80,44 @@ def custom_login_required(view_func):
         return view_func(request, *args, **kwargs)
     return _wrapped_view
 
-# --- NEW: Main Chat Interface View ---
+# --- Main Application Views ---
 @custom_login_required
 def chat_interface_view(request):
-    """
-    This view loads the main chat layout and provides the initial list of contacts.
-    """
-    contacts = ChatMessage.objects.values_list('sender_id', flat=True).distinct().order_by('sender_id')
+    # FIXED QUERY: Get unique contacts, ordered by the most recent message first
+    contacts = ChatMessage.objects.values_list('sender_id', flat=True).distinct().order_by('-timestamp')
     return render(request, 'sender_app/chat_interface.html', {
         'contacts': contacts, 
         'username': request.session.get('authenticated_user')
     })
 
-# --- NEW: API View to get chat history ---
 @custom_login_required
 def get_chat_history_json(request, phone_number):
-    """
-    This view returns the chat history for a specific contact as JSON.
-    Our JavaScript will call this to dynamically load conversations.
-    """
     messages = ChatMessage.objects.filter(sender_id=phone_number).order_by('timestamp')
     message_list = list(messages.values('message_text', 'is_from_user'))
     return JsonResponse({'messages': message_list})
 
-
+# --- API Endpoint to Start a Chat ---
+# This helper function is needed inside the start_new_chat_view
 def send_template_message(phone_number, template_name):
-    """
-    Sends a pre-approved template message to a new number.
-    This also serves as a way to validate if the number exists on WhatsApp.
-    """
     access_token = os.environ.get('WHATSAPP_ACCESS_TOKEN')
     phone_number_id = os.environ.get('WHATSAPP_PHONE_NUMBER_ID')
     version = os.environ.get('WHATSAPP_API_VERSION', 'v20.0')
     url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
     payload = {
-        "messaging_product": "whatsapp",
-        "to": phone_number,
-        "type": "template",
+        "messaging_product": "whatsapp", "to": phone_number, "type": "template",
         "template": {"name": template_name, "language": {"code": "en_US"}},
     }
     meta_api_logger.info(f"Starting new chat with {phone_number}. Payload: {json.dumps(payload)}")
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=15)
         response_data = response.json()
-        meta_api_logger.info(f"Start Chat Response for {phone_number}: Status {response.status_code}, Body: {response.text}")
-
-        if response.status_code == 200:
-            return {'success': True, 'data': response_data}
-        else:
-            # Check for specific error indicating invalid number
-            error_message = response_data.get('error', {}).get('message', 'An unknown error occurred.')
-            if "not a valid WhatsApp user" in error_message or "Recipient phone number not in allowed list" in error_message:
-                 return {'success': False, 'error': 'This phone number is not a valid WhatsApp user.'}
-            return {'success': False, 'error': error_message}
-
+        meta_api_logger.info(f"Start Chat Response: Status {response.status_code}, Body: {response.text}")
+        if response.status_code == 200: return {'success': True, 'data': response_data}
+        else: return {'success': False, 'error': response_data.get('error', {}).get('message', 'An unknown error occurred.')}
     except requests.exceptions.RequestException as e:
-        meta_api_logger.error(f"Start Chat Request failed for {phone_number}: {e}")
+        meta_api_logger.error(f"Start Chat Request failed: {e}")
         return {'success': False, 'error': 'A network error occurred.'}
-
-
-
-
 
 @custom_login_required
 def start_new_chat_view(request):
@@ -159,7 +132,6 @@ def start_new_chat_view(request):
         result = send_template_message(phone_number, template_name)
 
         if result['success']:
-            # Create a placeholder message in our DB
             ChatMessage.objects.create(
                 sender_id=phone_number,
                 message_text=f"Started chat with template: '{template_name}'",
@@ -168,18 +140,12 @@ def start_new_chat_view(request):
             return JsonResponse({'success': True, 'phone_number': phone_number})
         else:
             return JsonResponse({'success': False, 'error': result['error']}, status=400)
-
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
-
-
-
-
-
-# --- Webhook (No changes needed) ---
+# --- Webhook ---
 @csrf_exempt
 def webhook_view(request):
-    # This view remains the same
+    # This logic remains the same
     if request.method == "POST":
         data = json.loads(request.body)
         meta_api_logger.info(f"Webhook received: {json.dumps(data)}")
@@ -206,8 +172,6 @@ def webhook_view(request):
              return HttpResponse("Invalid verification token", status=403)
     return HttpResponse(status=405)
 
-
-
-
 def health_check_view(request):
     return JsonResponse({"status": "ok"})
+

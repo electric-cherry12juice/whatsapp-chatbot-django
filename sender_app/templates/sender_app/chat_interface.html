@@ -55,16 +55,100 @@
 
         <!-- Main Chat Panel -->
         <main class="chat-panel" id="chat-panel">
-            <!-- This part remains the same as the previous version -->
-            <!-- ... chat-placeholder and active-chat-area ... -->
+            <div id="chat-placeholder" class="">
+                <h2>Select a chat to start messaging</h2>
+            </div>
+            <div id="active-chat-area" class="hidden">
+                <header class="chat-header" id="chat-header"></header>
+                <div class="chat-log" id="chat-log">
+                    <div class="chat-log-container" id="chat-log-container"></div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-message-input" placeholder="Type a message...">
+                    <button id="chat-message-submit">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M1.101 21.757L23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"></path></svg>
+                    </button>
+                </div>
+            </div>
         </main>
     </div>
 
     <script>
-        // ... All existing JS functions remain the same (loadChat, appendMessage, sendMessage) ...
-        
-        // --- NEW JAVASCRIPT FOR NEW FEATURES ---
+        let currentChatSocket = null;
+        let activePhoneNumber = null;
 
+        function loadChat(phoneNumber) {
+            activePhoneNumber = phoneNumber;
+            document.getElementById('chat-placeholder').classList.add('hidden');
+            document.getElementById('active-chat-area').classList.remove('hidden');
+
+            // Highlight active contact
+            document.querySelectorAll('.contact-item').forEach(el => el.classList.remove('active'));
+            document.querySelector(`.contact-item[data-phone="${phoneNumber}"]`).classList.add('active');
+
+            const chatLog = document.getElementById('chat-log-container');
+            const chatHeader = document.getElementById('chat-header');
+            chatHeader.textContent = phoneNumber;
+            chatLog.innerHTML = 'Loading...';
+
+            // Close existing WebSocket connection if open
+            if (currentChatSocket) {
+                currentChatSocket.close();
+            }
+
+            // Fetch chat history
+            fetch(`/api/chat/${phoneNumber}/`)
+                .then(response => response.json())
+                .then(data => {
+                    chatLog.innerHTML = '';
+                    data.messages.forEach(msg => appendMessage(msg.message_text, msg.is_from_user));
+                });
+
+            // Open new WebSocket connection
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const wsPath = `${protocol}${window.location.host}/ws/chat/${phoneNumber}/`;
+            currentChatSocket = new WebSocket(wsPath);
+
+            currentChatSocket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                appendMessage(data.message, data.is_from_user);
+            };
+
+            currentChatSocket.onerror = function(e) {
+                console.error('WebSocket error:', e);
+            };
+        }
+
+        function appendMessage(message, isFromUser) {
+            const chatLog = document.getElementById('chat-log-container');
+            const messageEl = document.createElement('div');
+            messageEl.className = `message-bubble ${isFromUser ? 'message-in' : 'message-out'}`;
+            messageEl.textContent = message;
+            chatLog.appendChild(messageEl);
+            chatLog.parentElement.scrollTop = chatLog.parentElement.scrollHeight;
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('chat-message-input');
+            const message = messageInput.value.trim();
+            if (message === '' || !currentChatSocket || currentChatSocket.readyState !== WebSocket.OPEN) {
+                return;
+            }
+            currentChatSocket.send(JSON.stringify({
+                'message': message,
+                'type': 'text'
+            }));
+            messageInput.value = '';
+        }
+
+        document.getElementById('chat-message-submit').onclick = sendMessage;
+        document.getElementById('chat-message-input').onkeyup = function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        };
+
+        // --- NEW JAVASCRIPT FOR NEW FEATURES ---
         const modal = document.getElementById('add-chat-modal');
         const modalError = document.getElementById('modal-error');
 
@@ -99,7 +183,6 @@
             .then(data => {
                 if (data.success) {
                     closeModal();
-                    // Add new contact to list if it doesn't exist, then load the chat
                     if (!document.querySelector(`.contact-item[data-phone="${data.phone_number}"]`)) {
                         const contactList = document.getElementById('contact-list-panel');
                         const newContactEl = document.createElement('div');
