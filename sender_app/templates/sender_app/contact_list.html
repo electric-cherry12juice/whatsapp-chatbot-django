@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WhatsApp Chats</title>
+    <style>
+        body { font-family: sans-serif; background-color: #f0f2f5; }
+        .container { max-width: 400px; margin: 2rem auto; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { background-color: #00a884; color: white; padding: 1rem; border-top-left-radius: 8px; border-top-right-radius: 8px; }
+        .contact-list { list-style: none; padding: 0; margin: 0; }
+        .contact-list li a { display: block; padding: 1rem; border-bottom: 1px solid #f0f2f5; text-decoration: none; color: #111b21; font-weight: bold; }
+        .contact-list li:last-child a { border-bottom: none; }
+        .contact-list li a:hover { background-color: #f5f6f6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header"><h1>Chats</h1></div>
+        <ul class="contact-list">
+            {% for contact in contacts %}
+                <li><a href="{% url 'chat_room' contact %}">{{ contact }}</a></li>
+            {% empty %}
+                <li><a href="#">No conversations yet.</a></li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>

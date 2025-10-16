@@ -15,4 +15,3 @@ class ChatMessage(models.Model):
         # A simple string representation for the Django admin interface.
         direction = "From" if self.is_from_user else "To"
         return f"{direction} {self.sender_id}: {self.message_text[:30]}"
-

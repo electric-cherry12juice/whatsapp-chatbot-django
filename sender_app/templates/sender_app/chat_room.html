@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with {{ phone_number }}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #e5ddd5; margin: 0; }
+        .chat-container { max-width: 800px; margin: 0 auto; background: #fff; display: flex; flex-direction: column; height: 100vh; }
+        .chat-header { padding: 10px 15px; background-color: #f0f2f5; border-bottom: 1px solid #ddd; display: flex; align-items: center; }
+        .chat-header a { text-decoration: none; color: #007bff; margin-right: 15px; }
+        .chat-header h1 { margin: 0; font-size: 1.2rem; color: #111b21; }
+        #chat-log { flex-grow: 1; padding: 1rem; overflow-y: auto; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
+        .message { display: flex; margin-bottom: 0.75rem; }
+        .message-bubble { max-width: 70%; padding: 8px 12px; border-radius: 7.5px; line-height: 1.4; box-shadow: 0 1px 0.5px rgba(11,20,26,.13); }
+        .sent { justify-content: flex-end; }
+        .received { justify-content: flex-start; }
+        .sent .message-bubble { background-color: #d9fdd3; }
+        .received .message-bubble { background-color: #ffffff; }
+        .chat-input-form { display: flex; padding: 10px; background-color: #f0f2f5; }
+        #chat-message-input { flex-grow: 1; border: 1px solid #ddd; border-radius: 20px; padding: 10px 15px; font-size: 1rem; resize: none; }
+        #chat-message-submit { background-color: #00a884; color: white; border: none; border-radius: 50%; width: 45px; height: 45px; font-size: 1.5rem; margin-left: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <a href="{% url 'contact_list' %}">&larr; Back</a>
+            <h1>{{ phone_number }}</h1>
+        </div>
+        <div id="chat-log">
+            {% for message in messages %}
+                <div class="message {% if message.is_from_user %}received{% else %}sent{% endif %}">
+                    <div class="message-bubble">{{ message.message_text }}</div>
+                </div>
+            {% endfor %}
+        </div>
+        <div class="chat-input-form">
+            <textarea id="chat-message-input" rows="1"></textarea>
+            <button id="chat-message-submit">&rarr;</button>
+        </div>
+    </div>
+
+    {{ phone_number|json_script:"room-phone-number" }}
+
+    <script>
+        const phoneNumber = JSON.parse(document.getElementById('room-phone-number').textContent);
+        const chatLog = document.getElementById('chat-log');
+        const messageInput = document.getElementById('chat-message-input');
+        const messageSubmit = document.getElementById('chat-message-submit');
+
+        function scrollToBottom() {
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+        scrollToBottom();
+
+        const chatSocket = new WebSocket(
+            (window.location.protocol === 'https:' ? 'wss://' : 'ws://') +
+            window.location.host +
+            '/ws/chat/' + phoneNumber + '/'
+        );
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + (data.is_from_user ? 'received' : 'sent');
+            
+            const bubbleDiv = document.createElement('div');
+            bubbleDiv.className = 'message-bubble';
+            bubbleDiv.textContent = data.message;
+            
+            messageDiv.appendChild(bubbleDiv);
+            chatLog.appendChild(messageDiv);
+            scrollToBottom();
+        };
+
+        chatSocket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+        };
+
+        messageInput.focus();
+        messageInput.onkeyup = function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) { // Send on Enter, new line on Shift+Enter
+                e.preventDefault();
+                messageSubmit.click();
+            }
+        };
+
+        messageSubmit.onclick = function(e) {
+            const message = messageInput.value;
+            if (message.trim() === '') return;
+
+            chatSocket.send(JSON.stringify({
+                'message': message
+            }));
+            messageInput.value = '';
+        };
+    </script>
+</body>
+</html>
