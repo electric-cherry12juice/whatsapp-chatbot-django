@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat History</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f4f9; margin: 0; padding: 1rem; }
+        .chat-container { max-width: 800px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; height: 90vh; }
+        .chat-header { padding: 1rem; border-bottom: 1px solid #ddd; background-color: #f7f7f7; display: flex; justify-content: space-between; align-items: center; }
+        .chat-header h1 { margin: 0; font-size: 1.25rem; }
+        .nav-link { text-decoration: none; background-color: #007bff; color: white; padding: 0.5rem 1rem; border-radius: 5px; font-size: 0.9rem; }
+        .chat-box { flex-grow: 1; padding: 1rem; overflow-y: auto; }
+        .message { display: flex; margin-bottom: 1rem; }
+        .message-bubble { max-width: 70%; padding: 0.75rem 1rem; border-radius: 18px; line-height: 1.4; }
+        .message.sent { justify-content: flex-end; }
+        .message.received { justify-content: flex-start; }
+        .message.sent .message-bubble { background-color: #007bff; color: white; border-bottom-right-radius: 4px; }
+        .message.received .message-bubble { background-color: #e9ecef; color: #333; border-bottom-left-radius: 4px; }
+        .timestamp { font-size: 0.75rem; color: #999; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>Chat History</h1>
+            <a href="{% url 'send_message' %}" class="nav-link">Send New Message</a>
+        </div>
+        <div class="chat-box">
+            {% for message in messages %}
+                <div class="message {% if message.is_from_user %}received{% else %}sent{% endif %}">
+                    <div class="message-bubble">
+                        {{ message.message_text }}
+                        <div class="timestamp">{{ message.timestamp|date:"M d, H:i" }}</div>
+                    </div>
+                </div>
+            {% empty %}
+                <p style="text-align: center; color: #777;">No messages yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>

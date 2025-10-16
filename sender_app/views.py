@@ -6,6 +6,7 @@ import requests
 import json
 from .models import ChatMessage
 
+
 def send_message_view(request):
     # Initialize a context dictionary to pass data to the template
     context = {}
@@ -35,7 +36,7 @@ def send_message_view(request):
         elif message_type == "template":
             template_name = request.POST.get('template_name')
             payload["type"] = "template"
-            payload["template"] = {"name": template_name, "language": {"code": "en_US"}}
+            payload["template"] = {"name": template_name, "language": {"code": "ru"}}
 
         # --- STEP 2: CATCH ANY CRASHES DURING THE API CALL ---
         try:
@@ -96,6 +97,17 @@ def webhook_view(request):
         return HttpResponse(status=200)
 
     return HttpResponse(status=405)
+
+def chat_view(request):
+    # 1. Fetch all messages from the database
+    # 2. Order them by the timestamp so the newest are at the bottom
+    messages = ChatMessage.objects.all().order_by('timestamp')
+    
+    # 3. Pass the messages to the template
+    context = {
+        'messages': messages
+    }
+    return render(request, 'sender_app/chat.html', context)
 
 def health_check_view(request):
     return JsonResponse({"status": "ok"})

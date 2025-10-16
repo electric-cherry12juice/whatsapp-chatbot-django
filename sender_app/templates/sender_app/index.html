@@ -32,7 +32,11 @@
 </head>
 <body>
     <div class="container">
-        <h1>Send WhatsApp Message</h1>
+        <h1 style="display: flex; justify-content: space-between; align-items: center;">
+            Send WhatsApp Message
+            <a href="{% url 'chat_view' %}" style="font-size: 0.9rem; text-decoration: none; background-color: #28a745; color: white; padding: 0.5rem 1rem; border-radius: 5px;">View Chat History</a>
+        </h1>
+        
 
         <!-- Response Display Section -->
         {% if response_status %}
