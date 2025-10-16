@@ -131,7 +131,7 @@ def send_template_message(phone_number, template_name):
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
     payload = {
         "messaging_product": "whatsapp", "to": phone_number, "type": "template",
-        "template": {"name": template_name, "language": {"code": "en_US"}},
+        "template": {"name": template_name, "language": {"code": "ru"}},
     }
     meta_api_logger.info(f"Starting new chat with {phone_number}. Payload: {json.dumps(payload)}")
     try:
