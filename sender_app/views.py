@@ -11,6 +11,7 @@ from django.views.decorators.csrf import csrf_exempt
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from .models import ChatMessage
+from django.db.models import Max, Q
 
 # Get our custom logger
 meta_api_logger = logging.getLogger('meta_api_logger')
@@ -42,7 +43,7 @@ def send_otp_to_admin(code):
 # --- Authentication Views ---
 def login_view(request):
     if request.session.get('is_authenticated'):
-        return redirect('chat_interface') # Redirect to chat if already logged in
+        return redirect('chat_interface')
     if request.method == 'POST':
         otp_code = random.randint(100000, 999999)
         request.session['otp_code_for_verification'] = otp_code
@@ -61,7 +62,7 @@ def verify_view(request):
         if entered_code and stored_code and int(entered_code) == stored_code:
             request.session['is_authenticated'] = True
             request.session['authenticated_user'] = "Admin"
-            request.session.set_expiry(60 * 60 * 11) # 11 hours
+            request.session.set_expiry(60 * 60 * 11)
             del request.session['otp_code_for_verification']
             return redirect(reverse('chat_interface'))
         else:
@@ -83,8 +84,12 @@ def custom_login_required(view_func):
 # --- Main Application Views ---
 @custom_login_required
 def chat_interface_view(request):
-    # FIXED QUERY: Get unique contacts, ordered by the most recent message first
-    contacts = ChatMessage.objects.values_list('sender_id', flat=True).distinct().order_by('-timestamp')
+    # FIXED QUERY: Annotate each sender_id with its latest message timestamp,
+    # then order by that timestamp descending to get a unique, correctly sorted list.
+    contacts = ChatMessage.objects.values('sender_id').annotate(
+        latest_message=Max('timestamp')
+    ).order_by('-latest_message').values_list('sender_id', flat=True)
+    
     return render(request, 'sender_app/chat_interface.html', {
         'contacts': contacts, 
         'username': request.session.get('authenticated_user')
@@ -96,9 +101,29 @@ def get_chat_history_json(request, phone_number):
     message_list = list(messages.values('message_text', 'is_from_user'))
     return JsonResponse({'messages': message_list})
 
-# --- API Endpoint to Start a Chat ---
-# This helper function is needed inside the start_new_chat_view
+# --- NEW: API Endpoint for Searching Chats ---
+@custom_login_required
+def search_chats_json(request):
+    query = request.GET.get('q', '')
+    if not query:
+        # If query is empty, return all contacts sorted by recency
+        contacts = ChatMessage.objects.values('sender_id').annotate(
+            latest_message=Max('timestamp')
+        ).order_by('-latest_message').values_list('sender_id', flat=True)
+    else:
+        # If there is a query, find contacts that have a matching message or phone number
+        matching_contacts = ChatMessage.objects.filter(
+            Q(message_text__icontains=query) | Q(sender_id__icontains=query)
+        ).values('sender_id').annotate(
+            latest_message=Max('timestamp')
+        ).order_by('-latest_message').values_list('sender_id', flat=True)
+        contacts = list(matching_contacts)
+
+    return JsonResponse({'contacts': contacts})
+
+
 def send_template_message(phone_number, template_name):
+    # This helper function logic remains the same
     access_token = os.environ.get('WHATSAPP_ACCESS_TOKEN')
     phone_number_id = os.environ.get('WHATSAPP_PHONE_NUMBER_ID')
     version = os.environ.get('WHATSAPP_API_VERSION', 'v20.0')
@@ -113,8 +138,13 @@ def send_template_message(phone_number, template_name):
         response = requests.post(url, headers=headers, json=payload, timeout=15)
         response_data = response.json()
         meta_api_logger.info(f"Start Chat Response: Status {response.status_code}, Body: {response.text}")
-        if response.status_code == 200: return {'success': True, 'data': response_data}
-        else: return {'success': False, 'error': response_data.get('error', {}).get('message', 'An unknown error occurred.')}
+        if response.status_code == 200:
+            return {'success': True, 'data': response_data}
+        else:
+            error_message = response_data.get('error', {}).get('message', 'An unknown error occurred.')
+            if "not a valid WhatsApp user" in error_message or "Recipient phone number not in allowed list" in error_message:
+                return {'success': False, 'error': 'This phone number is not a valid WhatsApp user.'}
+            return {'success': False, 'error': error_message}
     except requests.exceptions.RequestException as e:
         meta_api_logger.error(f"Start Chat Request failed: {e}")
         return {'success': False, 'error': 'A network error occurred.'}
@@ -125,12 +155,9 @@ def start_new_chat_view(request):
         data = json.loads(request.body)
         phone_number = data.get('phone_number')
         template_name = data.get('template_name')
-
         if not phone_number or not template_name:
             return JsonResponse({'success': False, 'error': 'Phone number and template name are required.'}, status=400)
-
         result = send_template_message(phone_number, template_name)
-
         if result['success']:
             ChatMessage.objects.create(
                 sender_id=phone_number,
@@ -145,7 +172,6 @@ def start_new_chat_view(request):
 # --- Webhook ---
 @csrf_exempt
 def webhook_view(request):
-    # This logic remains the same
     if request.method == "POST":
         data = json.loads(request.body)
         meta_api_logger.info(f"Webhook received: {json.dumps(data)}")

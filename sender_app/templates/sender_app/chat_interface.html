@@ -41,7 +41,7 @@
                     </div>
                 </div>
                 <div class="search-bar">
-                    <input type="text" id="search-contacts" placeholder="Search chats..." onkeyup="filterContacts()">
+                    <input type="text" id="search-contacts" placeholder="Search chats by text or number..." onkeyup="searchContacts()">
                 </div>
             </header>
             <div class="contact-list" id="contact-list-panel">
@@ -76,27 +76,25 @@
     <script>
         let currentChatSocket = null;
         let activePhoneNumber = null;
+        let searchTimeout;
 
         function loadChat(phoneNumber) {
             activePhoneNumber = phoneNumber;
             document.getElementById('chat-placeholder').classList.add('hidden');
             document.getElementById('active-chat-area').classList.remove('hidden');
 
-            // Highlight active contact
             document.querySelectorAll('.contact-item').forEach(el => el.classList.remove('active'));
             document.querySelector(`.contact-item[data-phone="${phoneNumber}"]`).classList.add('active');
 
             const chatLog = document.getElementById('chat-log-container');
             const chatHeader = document.getElementById('chat-header');
             chatHeader.textContent = phoneNumber;
-            chatLog.innerHTML = 'Loading...';
+            chatLog.innerHTML = 'Loading history...';
 
-            // Close existing WebSocket connection if open
             if (currentChatSocket) {
                 currentChatSocket.close();
             }
 
-            // Fetch chat history
             fetch(`/api/chat/${phoneNumber}/`)
                 .then(response => response.json())
                 .then(data => {
@@ -104,14 +102,16 @@
                     data.messages.forEach(msg => appendMessage(msg.message_text, msg.is_from_user));
                 });
 
-            // Open new WebSocket connection
             const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
             const wsPath = `${protocol}${window.location.host}/ws/chat/${phoneNumber}/`;
             currentChatSocket = new WebSocket(wsPath);
 
             currentChatSocket.onmessage = function(e) {
                 const data = JSON.parse(e.data);
-                appendMessage(data.message, data.is_from_user);
+                // Only append if the message is for the currently active chat
+                if (activePhoneNumber === data.sender_id) {
+                    appendMessage(data.message, data.is_from_user);
+                }
             };
 
             currentChatSocket.onerror = function(e) {
@@ -148,7 +148,7 @@
             }
         };
 
-        // --- NEW JAVASCRIPT FOR NEW FEATURES ---
+        // --- MODAL JAVASCRIPT ---
         const modal = document.getElementById('add-chat-modal');
         const modalError = document.getElementById('modal-error');
 
@@ -207,20 +207,43 @@
                 submitButton.disabled = false;
             });
         });
+        
+        // --- NEW SEARCH JAVASCRIPT ---
+        function searchContacts() {
+            // Debounce the search to avoid spamming the server
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const searchTerm = document.getElementById('search-contacts').value;
+                fetch(`/api/search_chats/?q=${encodeURIComponent(searchTerm)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        updateContactList(data.contacts);
+                    });
+            }, 300); // Wait 300ms after user stops typing
+        }
 
-        function filterContacts() {
-            const searchTerm = document.getElementById('search-contacts').value.toLowerCase();
-            const contacts = document.querySelectorAll('.contact-item');
-            contacts.forEach(contact => {
-                const phoneNumber = contact.dataset.phone.toLowerCase();
-                if (phoneNumber.includes(searchTerm)) {
-                    contact.style.display = '';
-                } else {
-                    contact.style.display = 'none';
-                }
-            });
+        function updateContactList(contacts) {
+            const contactListPanel = document.getElementById('contact-list-panel');
+            contactListPanel.innerHTML = ''; // Clear the list
+            if (contacts.length === 0) {
+                contactListPanel.innerHTML = '<div class="no-results">No chats found.</div>';
+            } else {
+                contacts.forEach(contact => {
+                    const newContactEl = document.createElement('div');
+                    newContactEl.className = 'contact-item';
+                    newContactEl.dataset.phone = contact;
+                    newContactEl.textContent = contact;
+                    newContactEl.onclick = () => loadChat(contact);
+                    // Re-apply active class if the searched contact is the active one
+                    if (contact === activePhoneNumber) {
+                        newContactEl.classList.add('active');
+                    }
+                    contactListPanel.appendChild(newContactEl);
+                });
+            }
         }
     </script>
 </body>
 </html>
+
 

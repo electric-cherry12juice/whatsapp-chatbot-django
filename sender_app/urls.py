@@ -2,19 +2,18 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # --- Authentication URLs (This was missing) ---
+    # --- Authentication URLs ---
     path('login/', views.login_view, name='login_view'),
     path('verify/', views.verify_view, name='verify_view'),
     path('logout/', views.logout_view, name='logout_view'),
 
     # --- Main Application URL ---
-    # The root now correctly points to the login page first
-    path('', views.login_view, name='home'), 
-    path('chat/', views.chat_interface_view, name='chat_interface'),
+    path('', views.chat_interface_view, name='chat_interface'),
 
     # --- API Endpoints (for JavaScript) ---
     path('api/chat/<str:phone_number>/', views.get_chat_history_json, name='get_chat_history'),
     path('api/start_chat/', views.start_new_chat_view, name='start_new_chat'),
+    path('api/search_chats/', views.search_chats_json, name='search_chats'), # NEW SEARCH URL
 
     # --- Webhook for Meta ---
     path('webhook', views.webhook_view, name='webhook'),
