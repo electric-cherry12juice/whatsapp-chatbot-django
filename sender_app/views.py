@@ -6,7 +6,7 @@ import logging
 from django.conf import settings
 from django.shortcuts import render, redirect
 from django.urls import reverse
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -144,3 +144,5 @@ def webhook_view(request):
     return HttpResponse(status=405)
 
 
+def health_check_view(request):
+    return JsonResponse({"status": "ok"})

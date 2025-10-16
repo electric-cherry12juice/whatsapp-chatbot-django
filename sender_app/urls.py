@@ -13,4 +13,6 @@ urlpatterns = [
     
     # Webhook
     path('webhook', views.webhook_view, name='webhook'),
+
+    path('health/', views.health_check_view, name='health_check'),
 ]
