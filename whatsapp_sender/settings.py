@@ -14,13 +14,19 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # Set DEBUG to False in production. We can check if 'RENDER' is in the environment variables.
 DEBUG = 'RENDER' not in os.environ
 
-# --- ALLOWED HOSTS ---
-# Allow the Render app URL to make requests.
 ALLOWED_HOSTS = []
 
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
+# Also add your local host for testing if you need it
+
+
+
+
+if not DEBUG:
+    ALLOWED_HOSTS.append('127.0.0.1')
 
 if 'RENDER' in os.environ:
     CHANNEL_LAYERS = {
