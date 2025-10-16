@@ -11,3 +11,4 @@ urlpatterns = [
     # The '/health/' URL is for Render's health check
     path('health/', views.health_check_view, name='health_check'),
 ]
+
