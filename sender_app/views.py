@@ -56,7 +56,7 @@ def process_whatsapp_media(media_id):
         with open(os.path.join(media_dir, file_name), 'wb') as f:
             f.write(response_download.content)
             
-        web_path = f"/media/{file_type}/{file_name}"
+        web_path = f"/static/media/{file_type}/{file_name}"
         return web_path, file_type
     except requests.exceptions.RequestException as e:
         meta_api_logger.error(f"Network error while processing media ID {media_id}: {e}")

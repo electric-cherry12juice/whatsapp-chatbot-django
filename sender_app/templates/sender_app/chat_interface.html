@@ -162,7 +162,7 @@
             if (message && (message.startsWith('/media/') || message.startsWith('http'))) {
                 if (/\.(jpg|jpeg|png|gif|webp)$/i.test(message)) {
             // Prepend /static for WhiteNoise if it's a local media file
-                    const src = message.startsWith('/media/') ? `/static${message}` : message;
+                    const src = message;
                     messageEl.innerHTML = `<img src="${src}" style="max-width: 100%; border-radius: 5px; display: block;" alt="Image">`;
                 } else if (/\.(mp3|ogg|amr|wav)$/i.test(message)) {
                     const src = message.startsWith('/media/') ? `/static${message}` : message;
