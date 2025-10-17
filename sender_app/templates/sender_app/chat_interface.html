@@ -266,7 +266,7 @@
                 fetch("{% url 'start_new_chat' %}", {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                    body: JSON.stringify({ phone_number: DOM.addChatForm.elements.phone_number.value, template_name: DOM.addChatForm.elements.template_name.value })
+                    body: JSON.stringify({ phone_number: document.getElementById('new-chat-number').value, template_name: document.getElementById('new-chat-template').value })
                 }).then(r => r.json()).then(data => {
                     if (data.success) {
                         closeModal();
