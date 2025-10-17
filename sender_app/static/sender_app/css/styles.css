@@ -69,6 +69,7 @@ body, html {
     display: flex;
     flex-direction: column;
     background-color: var(--bg-main);
+    min-height: 0;
 }
 .chat-header {
     padding: 10px 16px;
@@ -78,11 +79,24 @@ body, html {
     border-bottom: 1px solid var(--border-color);
 }
 .chat-log {
+    
+    display: flex;                /* make inner container alignable */
+    justify-content: center;     /* center the chat column horizontally */
+    align-items: stretch;        /* let child fill available height */
+  
     flex-grow: 1;
     overflow-y: auto; /* THIS IS THE SCROLLBAR. IT WILL WORK. */
     padding: 20px;
+    min-height: 0;
 }
 .chat-log-container {
+
+     
+  
+    height: 100%;                /* fill parent's height so overflow works */
+    overflow-y: auto;            /* <-- scrollbar will appear here */
+    padding-right: 8px;          /* room so messages don't hide under scrollbar */
+    box-sizing: border-box;
     max-width: 800px;
     width: 100%;
     margin: 0 auto;
