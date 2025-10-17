@@ -134,6 +134,10 @@ CHANNEL_LAYERS = {
     },
 }
 # --- STATIC FILES ---
+
+
+
+
 STATIC_URL = 'static/'
 # This tells Django to collect all static files into a single directory during deployment.
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
@@ -157,8 +161,13 @@ ADMIN_PHONE_NUMBER = os.environ.get('ADMIN_PHONE_NUMBER')
 
 # Session duration: 11 hours in seconds (11 * 60 * 60)
 SESSION_COOKIE_AGE = 39600
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
+MEDIA_URL = '/' # The URL will be served from the root now, e.g., /staticfiles/image/file.jpg
+MEDIA_ROOT = STATIC_ROOT
+
+STORAGES = {"staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOGGING = {
     'version': 1,
