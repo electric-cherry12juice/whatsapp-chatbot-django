@@ -68,11 +68,11 @@ body, html {
 .contact-item:hover .delete-chat-btn { display: block; }
 .delete-chat-btn:hover { background-color: var(--bg-hover); color: var(--danger-red);}
 
-/* --- Chat Panel (BULLETPROOF LAYOUT) --- */
+/* --- CHAT PANEL (BULLETPROOF SCROLLBAR LAYOUT) --- */
 .chat-panel { flex-grow: 1; display: flex; flex-direction: column; background-color: var(--bg-main); }
 .chat-header { padding: 10px 16px; background-color: var(--bg-header); font-weight: 500; flex-shrink: 0; border-bottom: 1px solid var(--border-color); }
-.chat-log { flex-grow: 1; overflow-y: auto; /* THIS IS THE GUARANTEE */ display: flex; flex-direction: column; padding: 20px; }
-.chat-log-container { max-width: 800px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; justify-content: flex-end; min-height: 100%; }
+.chat-log { flex-grow: 1; overflow-y: auto; /* THIS WILL ALWAYS WORK NOW */ display: block; padding: 20px; }
+.chat-log-container { max-width: 800px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; }
 .message-bubble { max-width: 70%; padding: 8px 12px; border-radius: 8px; word-wrap: break-word; animation: slideIn 0.3s ease-out; margin-bottom: 8px; }
 .message-in { background-color: var(--msg-in); align-self: flex-start; }
 .message-out { background-color: var(--msg-out); align-self: flex-end; }
@@ -103,4 +103,3 @@ body, html {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb); border-radius: 4px; border: 2px solid var(--bg-main); }
 .chat-log, .contact-list { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
-

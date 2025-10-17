@@ -81,6 +81,7 @@
     </div>
 
     <script>
+        // --- DOM Elements & State ---
         const DOM = {
             contactList: document.getElementById('contact-list'),
             chatPanel: document.getElementById('chat-panel'),
@@ -106,25 +107,25 @@
             searchTimeout: null,
         };
 
+        // --- CORE CHAT FUNCTIONS ---
         function scrollToBottom() {
             DOM.chatLog.scrollTop = DOM.chatLog.scrollHeight;
         }
 
         function setupWebSocket(phoneNumber) {
             if (state.chatSocket) state.chatSocket.close();
-            
             const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            const wsPath = `${protocol}${window.location.host}/ws/chat/${phoneNumber}/`;
-            state.chatSocket = new WebSocket(wsPath);
+            state.chatSocket = new WebSocket(`${protocol}${window.location.host}/ws/chat/${phoneNumber}/`);
+            state.chatSocket.onmessage = handleWebSocketMessage;
+            state.chatSocket.onerror = (e) => console.error('WebSocket Error:', e);
+        }
 
-            state.chatSocket.onmessage = (e) => {
-                const data = JSON.parse(e.data);
-                moveContactToTop(data.sender_id);
-                if (state.activePhoneNumber === data.sender_id) {
-                    appendMessage(data.message, data.is_from_user);
-                }
-            };
-            state.chatSocket.onerror = (e) => console.error('WebSocket error:', e);
+        function handleWebSocketMessage(e) {
+            const data = JSON.parse(e.data);
+            moveContactToTop(data.sender_id);
+            if (state.activePhoneNumber === data.sender_id) {
+                appendMessage(data.message, data.is_from_user);
+            }
         }
 
         function loadChat(phoneNumber) {
@@ -133,8 +134,8 @@
             DOM.activeChatArea.classList.remove('hidden');
 
             document.querySelectorAll('.contact-item').forEach(el => el.classList.remove('active'));
-            const activeContactEl = document.querySelector(`.contact-item[data-phone="${phoneNumber}"]`);
-            if (activeContactEl) activeContactEl.classList.add('active');
+            const activeEl = document.querySelector(`.contact-item[data-phone="${phoneNumber}"]`);
+            if (activeEl) activeEl.classList.add('active');
 
             DOM.chatHeader.textContent = phoneNumber;
             DOM.chatLogContainer.innerHTML = '<div style="text-align: center; color: var(--text-secondary);">Loading...</div>';
@@ -164,11 +165,13 @@
 
         function sendMessage() {
             const message = DOM.messageInput.value.trim();
-            if (message === '' || !state.chatSocket || state.chatSocket.readyState !== WebSocket.OPEN) return;
+            if (!message || !state.chatSocket || state.chatSocket.readyState !== WebSocket.OPEN) return;
             state.chatSocket.send(JSON.stringify({ 'message': message, 'type': 'text' }));
             DOM.messageInput.value = '';
+            moveContactToTop(state.activePhoneNumber);
         }
 
+        // --- UX FEATURE FUNCTIONS ---
         function openModal() { DOM.modal.classList.remove('hidden'); }
         function closeModal() {
             DOM.modal.classList.add('hidden');
@@ -177,9 +180,9 @@
         }
 
         function moveContactToTop(phoneNumber) {
-            let contactToMove = document.querySelector(`.contact-item[data-phone="${phoneNumber}"]`);
-            if (contactToMove) {
-                DOM.contactList.prepend(contactToMove);
+            let contactEl = document.querySelector(`.contact-item[data-phone="${phoneNumber}"]`);
+            if (contactEl) {
+                DOM.contactList.prepend(contactEl);
             } else {
                 addContactToList(phoneNumber, true);
             }
@@ -191,15 +194,14 @@
             fetch(`/api/delete_chat/${phoneNumber}/`, {
                 method: 'DELETE',
                 headers: { 'X-CSRFToken': '{{ csrf_token }}' }
-            }).then(response => response.json()).then(data => {
+            }).then(r => r.json()).then(data => {
                 if (data.success) {
-                    const contactEl = document.querySelector(`.contact-item[data-phone="${phoneNumber}"]`);
-                    if (contactEl) contactEl.remove();
+                    document.querySelector(`.contact-item[data-phone="${phoneNumber}"]`)?.remove();
                     if (state.activePhoneNumber === phoneNumber) {
                         DOM.activeChatArea.classList.add('hidden');
                         DOM.chatPlaceholder.classList.remove('hidden');
                         state.activePhoneNumber = null;
-                        if(state.chatSocket) state.chatSocket.close();
+                        if (state.chatSocket) state.chatSocket.close();
                     }
                 } else {
                     alert('Error: ' + (data.error || 'Unknown error'));
@@ -213,7 +215,7 @@
             DOM.clearSearchBtn.classList.toggle('hidden', searchTerm.trim() === '');
             state.searchTimeout = setTimeout(() => {
                 fetch(`/api/search_chats/?q=${encodeURIComponent(searchTerm)}`)
-                    .then(response => response.json())
+                    .then(r => r.json())
                     .then(data => updateContactList(data.contacts));
             }, 300);
         }
@@ -230,16 +232,18 @@
         }
 
         function addContactToList(contact, prepend = false) {
-            const newContactEl = document.createElement('div');
-            newContactEl.className = 'contact-item';
-            newContactEl.dataset.phone = contact;
-            newContactEl.innerHTML = `
+            const contactEl = document.createElement('div');
+            contactEl.className = 'contact-item';
+            contactEl.dataset.phone = contact;
+            contactEl.innerHTML = `
                 <span class="contact-name">${contact}</span>
                 <button class="delete-chat-btn">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
                 </button>`;
-            if (prepend) DOM.contactList.prepend(newContactEl);
-            else DOM.contactList.appendChild(newContactEl);
+            contactEl.addEventListener('click', () => loadChat(contact));
+            contactEl.querySelector('.delete-chat-btn').addEventListener('click', (e) => deleteChat(e, contact));
+            if (prepend) DOM.contactList.prepend(contactEl);
+            else DOM.contactList.appendChild(contactEl);
         }
 
         function updateContactList(contacts) {
@@ -254,19 +258,17 @@
             }
         }
 
-        // --- Event Listeners ---
+        // --- INITIAL EVENT LISTENERS ---
         DOM.messageSubmit.addEventListener('click', sendMessage);
         DOM.messageInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') sendMessage(); });
         DOM.searchInput.addEventListener('keyup', searchContacts);
         DOM.clearSearchBtn.addEventListener('click', clearSearch);
         DOM.addChatForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            const phoneNumber = document.getElementById('new-chat-number').value;
-            const templateName = document.getElementById('new-chat-template').value;
             fetch("{% url 'start_new_chat' %}", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                body: JSON.stringify({ phone_number: phoneNumber, template_name: templateName })
+                body: JSON.stringify({ phone_number: DOM.addChatForm.elements.phone_number.value, template_name: DOM.addChatForm.elements.template_name.value })
             }).then(r => r.json()).then(data => {
                 if (data.success) {
                     closeModal();
@@ -275,13 +277,12 @@
                     }
                     loadChat(data.phone_number);
                 } else {
-                    DOM.modalError.textContent = data.error || 'An unknown error occurred.';
+                    DOM.modalError.textContent = data.error || 'An error occurred.';
                     DOM.modalError.classList.remove('hidden');
                 }
             });
         });
         
-        // Add event listeners to initial contacts
         document.querySelectorAll('.contact-item').forEach(item => {
             item.addEventListener('click', () => loadChat(item.dataset.phone));
             item.querySelector('.delete-chat-btn').addEventListener('click', (e) => deleteChat(e, item.dataset.phone));
