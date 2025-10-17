@@ -108,8 +108,8 @@ def serve_media(request, path):
     except Exception as e:
         meta_api_logger.error(f"Error sending media file {full_path}: {e}")
         raise Http404("Media read error")
-    
-        
+
+
 # --- Your existing helper ---
 def send_otp_to_admin(code):
     # This function is unchanged
@@ -251,54 +251,96 @@ def start_new_chat_view(request):
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
 # --- Webhook (UPGRADED for media) ---
+
 @csrf_exempt
 def webhook_view(request):
     if request.method == "POST":
-        data = json.loads(request.body)
-        meta_api_logger.info(f"Webhook received: {json.dumps(data)}")
         try:
-            if 'entry' in data and data['entry'][0].get('changes', [{}])[0].get('value', {}).get('messages'):
-                message_data = data['entry'][0]['changes'][0]['value']['messages'][0]
-                sender_id = message_data['from']
-                message_type = message_data['type']
-                
-                content_for_broadcast = None
-                
-                if message_type == 'text':
-                    message_text = message_data['text']['body']
-                    ChatMessage.objects.create(sender_id=sender_id, message_text=message_text, is_from_user=True, message_type='text')
-                    content_for_broadcast = message_text
-                
-                elif message_type in ['image', 'audio']:
-                    media_id = message_data[message_type]['id']
-                    media_path, media_type_str = process_whatsapp_media(media_id)
-                    if media_path:
-                        ChatMessage.objects.create(sender_id=sender_id, media_url=media_path, is_from_user=True, message_type=media_type_str)
-                        content_for_broadcast = media_path
+            data = json.loads(request.body)
+        except Exception as e:
+            meta_api_logger.error(f"Webhook payload JSON parse error: {e} - raw: {request.body}")
+            return HttpResponse(status=400)
 
-                if content_for_broadcast:
-                    channel_layer = get_channel_layer()
-                    async_to_sync(channel_layer.group_send)(
-                        f'chat_{sender_id}',
-                        {
-                            'type': 'chat_message',
-                            'message': content_for_broadcast,
-                            'is_from_user': True,
-                            'sender_id': sender_id
-                        }
-                    )
-        except (IndexError, KeyError) as e:
-            meta_api_logger.warning(f"Could not parse webhook data: {e} - Data: {json.dumps(data)}")
+        meta_api_logger.info(f"Webhook received: {json.dumps(data)[:8000]}")  # avoid logging giant payloads fully
+
+        try:
+            entries = data.get('entry', [])
+            for entry in entries:
+                changes = entry.get('changes', [])
+                for change in changes:
+                    value = change.get('value', {})
+                    messages = value.get('messages') or []
+                    for message_data in messages:
+                        sender_id = message_data.get('from')
+                        message_type = message_data.get('type')
+                        content_for_broadcast = None
+
+                        if message_type == 'text':
+                            message_text = message_data.get('text', {}).get('body')
+                            if message_text:
+                                ChatMessage.objects.create(sender_id=sender_id, message_text=message_text, is_from_user=True, message_type='text')
+                                content_for_broadcast = message_text
+
+                        elif message_type in ['image', 'audio', 'video', 'document']:
+                            # prefer the webhook-provided url if available (some webhooks include it)
+                            media_obj = message_data.get(message_type, {})
+                            media_id = media_obj.get('id')
+                            webhook_url = media_obj.get('url') or media_obj.get('link')
+                            meta_api_logger.info(f"Incoming media: type={message_type} id={media_id} url={webhook_url}")
+
+                            web_path = None
+                            media_type_str = 'image' if message_type == 'image' else 'audio' if message_type == 'audio' else message_type
+
+                            # If webhook already included a ready-to-download url, try that first
+                            if webhook_url:
+                                try:
+                                    r = requests.get(webhook_url, timeout=20)
+                                    if r.status_code == 200:
+                                        # determine extension from headers or url
+                                        content_type = r.headers.get('Content-Type', '')
+                                        ext = content_type.split('/')[-1].split(';')[0] or 'bin'
+                                        file_name = f"{uuid4()}.{ext}"
+                                        media_dir = os.path.join(settings.MEDIA_ROOT, media_type_str)
+                                        os.makedirs(media_dir, exist_ok=True)
+                                        file_full_path = os.path.join(media_dir, file_name)
+                                        with open(file_full_path, 'wb') as f:
+                                            f.write(r.content)
+                                        web_path = f"/media/{media_type_str}/{file_name}"
+                                        meta_api_logger.info(f"Saved webhook-provided media to {file_full_path} -> {web_path}")
+                                except Exception as e:
+                                    meta_api_logger.warning(f"Failed to download webhook url {webhook_url}: {e}")
+
+                            # fallback to the media-id flow (Graph API /{media-id})
+                            if not web_path and media_id:
+                                web_path, mt = process_whatsapp_media(media_id)
+                                media_type_str = mt or media_type_str
+
+                            if web_path:
+                                ChatMessage.objects.create(sender_id=sender_id, media_url=web_path, is_from_user=True, message_type=media_type_str)
+                                content_for_broadcast = web_path
+                            else:
+                                meta_api_logger.error(f"Could not obtain media for id {media_id} from webhook for sender {sender_id}")
+
+                        # Broadcast if we have content
+                        if content_for_broadcast:
+                            channel_layer = get_channel_layer()
+                            async_to_sync(channel_layer.group_send)(
+                                f'chat_{sender_id}',
+                                {'type': 'chat_message', 'message': content_for_broadcast, 'is_from_user': True, 'sender_id': sender_id}
+                            )
+        except Exception as e:
+            meta_api_logger.exception(f"Unhandled exception processing webhook: {e} - Data: {json.dumps(data)[:8000]}")
         return HttpResponse(status=200)
 
-    # ... (GET verification logic is unchanged)
     if request.method == "GET":
         verify_token = os.environ.get('WHATSAPP_WEBHOOK_VERIFY_TOKEN')
         if request.GET.get("hub.verify_token") == verify_token:
-             return HttpResponse(request.GET.get("hub.challenge"), status=200)
+            return HttpResponse(request.GET.get("hub.challenge"), status=200)
         else:
-             return HttpResponse("Invalid verification token", status=403)
+            return HttpResponse("Invalid verification token", status=403)
+
     return HttpResponse(status=405)
+
 
 @custom_login_required
 def delete_chat_view(request, phone_number):

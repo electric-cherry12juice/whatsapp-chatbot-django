@@ -106,8 +106,16 @@
             searchTimeout: null,
         };
 
+        // Client message length limit (must match server-side guard)
+        const MAX_CLIENT_LEN = 8000;
+
         function scrollToBottom() {
-            DOM.chatLog.scrollTop = DOM.chatLog.scrollHeight;
+            // scroll the actual message container (chat-log-container)
+            if (DOM.chatLogContainer) {
+                DOM.chatLogContainer.scrollTop = DOM.chatLogContainer.scrollHeight;
+            } else if (DOM.chatLog) {
+                DOM.chatLog.scrollTop = DOM.chatLog.scrollHeight;
+            }
         }
 
         function setupWebSocket(phoneNumber) {
@@ -116,6 +124,8 @@
             state.chatSocket = new WebSocket(`${protocol}${window.location.host}/ws/chat/${phoneNumber}/`);
             state.chatSocket.onmessage = handleWebSocketMessage;
             state.chatSocket.onerror = (e) => console.error('WebSocket Error:', e);
+            state.chatSocket.onopen = () => console.info('WebSocket opened for', phoneNumber);
+            state.chatSocket.onclose = (e) => console.info('WebSocket closed', e);
         }
 
         function handleWebSocketMessage(e) {
@@ -151,48 +161,79 @@
                         const content = msg.media_url || msg.message_text || '';
                         appendMessage(content, msg.is_from_user);
                     });
+                })
+                .catch(err => {
+                    console.error('Failed to load chat history:', err);
+                    DOM.chatLogContainer.innerHTML = '<div style="text-align:center;color:var(--text-secondary)">Failed to load messages</div>';
                 });
             
             setupWebSocket(phoneNumber);
         }
 
         function appendMessage(message, isFromUser) {
-    const chatLogContainer = DOM.chatLogContainer;
-    if (!chatLogContainer) return;
-    if (!message && message !== 0) return;
+            const chatLogContainer = DOM.chatLogContainer;
+            if (!chatLogContainer) return;
+            if (!message && message !== 0) return;
 
-    const messageEl = document.createElement('div');
-    messageEl.className = `message-bubble ${isFromUser ? 'message-in' : 'message-out'}`;
+            const messageEl = document.createElement('div');
+            messageEl.className = `message-bubble ${isFromUser ? 'message-in' : 'message-out'}`;
 
-    if (typeof message !== 'string') message = String(message);
+            if (typeof message !== 'string') message = String(message);
 
-    const src = message;
-    const isUrl = src.startsWith('/media/') || src.startsWith('/static/media/') || src.startsWith('http://') || src.startsWith('https://');
+            const src = message;
+            const isUrl = src.startsWith('/media/') || src.startsWith('/static/media/') || src.startsWith('http://') || src.startsWith('https://');
 
-    if (isUrl && /\.(jpe?g|png|gif|webp)$/i.test(src)) {
-        messageEl.innerHTML = `<img src="${src}" alt="Image" style="max-width:100%; border-radius:5px; display:block;">`;
-    } else if (isUrl && /\.(mp3|ogg|amr|wav|m4a)$/i.test(src)) {
-        messageEl.innerHTML = `<audio controls src="${src}" style="width:100%; min-width:250px;">Your browser does not support the audio element.</audio>`;
-    } else if (isUrl) {
-        const a = document.createElement('a');
-        a.href = src;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.textContent = src;
-        messageEl.appendChild(a);
-    } else {
-        messageEl.textContent = message;
-    }
+            if (isUrl && /\.(jpe?g|png|gif|webp)$/i.test(src)) {
+                messageEl.innerHTML = `<img src="${src}" alt="Image" style="max-width:100%; border-radius:5px; display:block;">`;
+            } else if (isUrl && /\.(mp3|ogg|amr|wav|m4a)$/i.test(src)) {
+                messageEl.innerHTML = `<audio controls src="${src}" style="width:100%; min-width:250px;">Your browser does not support the audio element.</audio>`;
+            } else if (isUrl) {
+                const a = document.createElement('a');
+                a.href = src;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.textContent = src;
+                messageEl.appendChild(a);
+            } else {
+                messageEl.textContent = message;
+            }
 
-    chatLogContainer.appendChild(messageEl);
-    scrollToBottom();
-}
-    
-
+            chatLogContainer.appendChild(messageEl);
+            scrollToBottom();
+        }
+        
+        // === REPLACED sendMessage with client guard ===
         function sendMessage() {
             const message = DOM.messageInput.value.trim();
-            if (!message || !state.chatSocket || state.chatSocket.readyState !== WebSocket.OPEN) return;
-            state.chatSocket.send(JSON.stringify({ 'message': message, 'type': 'text' }));
+            if (!message) return;
+
+            // Client-side length guard
+            if (message.length > MAX_CLIENT_LEN) {
+                alert('Message too long — please shorten it (max ' + MAX_CLIENT_LEN + ' chars).');
+                return;
+            }
+
+            // Ensure websocket is connected
+            if (!state.chatSocket || state.chatSocket.readyState !== WebSocket.OPEN) {
+                alert('Not connected to server.');
+                return;
+            }
+
+            // Ensure a chat is selected
+            if (!state.activePhoneNumber) {
+                alert('Select a chat first.');
+                return;
+            }
+
+            // Send over websocket
+            try {
+                state.chatSocket.send(JSON.stringify({ message: message, type: 'text' }));
+            } catch (err) {
+                console.error('WebSocket send error:', err);
+                alert('Failed to send message.');
+                return;
+            }
+
             DOM.messageInput.value = '';
             moveContactToTop(state.activePhoneNumber);
         }
@@ -231,6 +272,9 @@
                 } else {
                     alert('Error: ' + (data.error || 'Unknown error'));
                 }
+            }).catch(err => {
+                console.error('Delete chat error:', err);
+                alert('Failed to delete chat.');
             });
         }
 
@@ -241,7 +285,8 @@
             state.searchTimeout = setTimeout(() => {
                 fetch(`/api/search_chats/?q=${encodeURIComponent(searchTerm)}`)
                     .then(r => r.json())
-                    .then(data => updateContactList(data.contacts));
+                    .then(data => updateContactList(data.contacts))
+                    .catch(err => console.error('Search error:', err));
             }, 300);
         }
         
@@ -306,6 +351,10 @@
                         DOM.modalError.textContent = data.error || 'An error occurred.';
                         DOM.modalError.classList.remove('hidden');
                     }
+                }).catch(err => {
+                    console.error('Start chat error:', err);
+                    DOM.modalError.textContent = 'Network error';
+                    DOM.modalError.classList.remove('hidden');
                 });
             });
             
