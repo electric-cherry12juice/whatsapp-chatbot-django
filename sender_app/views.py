@@ -84,8 +84,6 @@ def custom_login_required(view_func):
 # --- Main Application Views ---
 @custom_login_required
 def chat_interface_view(request):
-    # FIXED QUERY: Annotate each sender_id with its latest message timestamp,
-    # then order by that timestamp descending to get a unique, correctly sorted list.
     contacts = ChatMessage.objects.values('sender_id').annotate(
         latest_message=Max('timestamp')
     ).order_by('-latest_message').values_list('sender_id', flat=True)
@@ -101,24 +99,20 @@ def get_chat_history_json(request, phone_number):
     message_list = list(messages.values('message_text', 'is_from_user'))
     return JsonResponse({'messages': message_list})
 
-# --- NEW: API Endpoint for Searching Chats ---
 @custom_login_required
 def search_chats_json(request):
     query = request.GET.get('q', '')
     if not query:
-        # If query is empty, return all contacts sorted by recency
         contacts = ChatMessage.objects.values('sender_id').annotate(
             latest_message=Max('timestamp')
         ).order_by('-latest_message').values_list('sender_id', flat=True)
     else:
-        # If there is a query, find contacts that have a matching message or phone number
         matching_contacts = ChatMessage.objects.filter(
             Q(message_text__icontains=query) | Q(sender_id__icontains=query)
         ).values('sender_id').annotate(
             latest_message=Max('timestamp')
         ).order_by('-latest_message').values_list('sender_id', flat=True)
         contacts = list(matching_contacts)
-
     return JsonResponse({'contacts': contacts})
 
 
@@ -131,7 +125,7 @@ def send_template_message(phone_number, template_name):
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
     payload = {
         "messaging_product": "whatsapp", "to": phone_number, "type": "template",
-        "template": {"name": template_name, "language": {"code": "ru"}},
+        "template": {"name": template_name, "language": {"code": "en_US"}},
     }
     meta_api_logger.info(f"Starting new chat with {phone_number}. Payload: {json.dumps(payload)}")
     try:
@@ -180,11 +174,19 @@ def webhook_view(request):
                 message_data = data['entry'][0]['changes'][0]['value']['messages'][0]
                 sender_id = message_data['from']
                 message_text = message_data['text']['body']
+                
                 ChatMessage.objects.create(sender_id=sender_id, message_text=message_text, is_from_user=True)
+                
                 channel_layer = get_channel_layer()
+                # THE FIX IS HERE: We now include the sender_id in the broadcast event
                 async_to_sync(channel_layer.group_send)(
                     f'chat_{sender_id}',
-                    {'type': 'chat_message', 'message': message_text, 'is_from_user': True}
+                    {
+                        'type': 'chat_message',
+                        'message': message_text,
+                        'is_from_user': True,
+                        'sender_id': sender_id # This was missing!
+                    }
                 )
         except (IndexError, KeyError) as e:
             meta_api_logger.warning(f"Could not parse webhook data: {e} - Data: {json.dumps(data)}")
