@@ -147,7 +147,11 @@
                 .then(response => response.json())
                 .then(data => {
                     DOM.chatLogContainer.innerHTML = '';
-                    data.messages.forEach(msg => appendMessage(msg.message_text, msg.is_from_user));
+                    data.messages.forEach(msg => {
+        
+                    const content = msg.media_url || msg.message_text || '';
+                    appendMessage(content, msg.is_from_user);
+                 });
                 });
             
             setupWebSocket(phoneNumber);
@@ -155,25 +159,49 @@
 
         function appendMessage(message, isFromUser) {
             const chatLogContainer = document.getElementById('chat-log-container');
-            const messageEl = document.createElement('div');
-            messageEl.className = `message-bubble ${isFromUser ? 'message-in' : 'message-out'}`;
+            if (!chatLogContainer) return;
 
-    // THE FIX: Check for the correct media path
-            if (message && (message.startsWith('/media/') || message.startsWith('http'))) {
-                if (/\.(jpg|jpeg|png|gif|webp)$/i.test(message)) {
-            // Prepend /static for WhiteNoise if it's a local media file
-                    const src = message;
-                    messageEl.innerHTML = `<img src="${src}" style="max-width: 100%; border-radius: 5px; display: block;" alt="Image">`;
-                } else if (/\.(mp3|ogg|amr|wav)$/i.test(message)) {
-                    const src = message.startsWith('/media/') ? `/static${message}` : message;
-                    messageEl.innerHTML = `<audio controls src="${src}" style="width: 100%; min-width: 250px;">Your browser does not support the audio element.</audio>`;
-                } else {
-                    messageEl.textContent = message;
-                    }
-            } else {
-                messageEl.textContent = message;
-                }
-    
+    // Normalize falsy messages
+                if (!message && message !== 0) {
+                // If nothing to show, just skip
+        return;
+    }
+
+    const messageEl = document.createElement('div');
+    messageEl.className = `message-bubble ${isFromUser ? 'message-in' : 'message-out'}`;
+
+    // If message is an object (unexpected), stringify defensive
+    if (typeof message !== 'string') {
+        message = String(message);
+    }
+
+    // Acceptable URL prefixes we may receive
+    const isUrl = message.startsWith('/static/media/')
+                || message.startsWith('/media/')
+                || message.startsWith('http://')
+                || message.startsWith('https://');
+
+    // Use the string as src directly (process_whatsapp_media returns proper /static/media/... or you return absolute URLs)
+    const src = message;
+
+    if (isUrl && /\.(jpe?g|png|gif|webp)$/i.test(src)) {
+        messageEl.innerHTML = `<img src="${src}" alt="Image" style="max-width:100%; border-radius:5px; display:block;">`;
+    } else if (isUrl && /\.(mp3|ogg|amr|wav|m4a)$/i.test(src)) {
+        // audio element
+        messageEl.innerHTML = `<audio controls src="${src}" style="width:100%; min-width:250px;">Your browser does not support the audio element.</audio>`;
+    } else if (isUrl) {
+        // it's a URL but not a recognized media extension — show clickable link
+        const a = document.createElement('a');
+        a.href = src;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = src;
+        messageEl.appendChild(a);
+    } else {
+        // Plain text message
+        messageEl.textContent = message;
+    }
+
     chatLogContainer.appendChild(messageEl);
     scrollToBottom();
 }
