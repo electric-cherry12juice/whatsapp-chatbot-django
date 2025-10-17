@@ -22,7 +22,7 @@ urlpatterns = [
 
     # --- Webhook for Meta ---
     path('webhook', views.webhook_view, name='webhook'),
-    
+    path('media/<path:path>', views.serve_media, name='serve_media'),
     # --- Health Check for Render ---
     path('health/', views.health_check_view, name='health_check'),
 ]

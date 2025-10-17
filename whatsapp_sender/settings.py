@@ -139,7 +139,7 @@ CHANNEL_LAYERS = {
 
 
 STATIC_URL = 'static/'                # keep this or 'static/' (you already have)
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  
 STORAGES = {
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
@@ -162,8 +162,8 @@ ADMIN_PHONE_NUMBER = os.environ.get('ADMIN_PHONE_NUMBER')
 SESSION_COOKIE_AGE = 39600
 
 
-MEDIA_ROOT = os.path.join(STATIC_ROOT, 'media')
-MEDIA_URL = '/static/media/'   
+MEDIA_ROOT = os.path.join(STATIC_ROOT, 'media')      # will create staticfiles/media
+MEDIA_URL = '/media/'    
 
 STORAGES = {"staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

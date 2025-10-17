@@ -13,55 +13,103 @@ from channels.layers import get_channel_layer
 from .models import ChatMessage
 from django.db.models import Max, Q
 from uuid import uuid4
+import mimetypes
+from django.http import FileResponse, Http404
 
 meta_api_logger = logging.getLogger('meta_api_logger')
 
 # --- NEW HELPER: Downloads and saves media from WhatsApp ---
 def process_whatsapp_media(media_id):
+    """
+    Download media from WhatsApp/Meta, save into MEDIA_ROOT/<type>/<uuid>.<ext>
+    Return a web-accessible path: /media/<type>/<filename> and the file type (image|audio).
+    """
     access_token = os.environ.get('WHATSAPP_ACCESS_TOKEN')
     version = os.environ.get('WHATSAPP_API_VERSION', 'v20.0')
-    
-    # Step 1: Get Media URL from Meta
+
     url_get_media = f"https://graph.facebook.com/{version}/{media_id}"
     headers = {"Authorization": f"Bearer {access_token}"}
     try:
         response_get_url = requests.get(url_get_media, headers=headers, timeout=15)
         if response_get_url.status_code != 200:
-            meta_api_logger.error(f"Failed to get media URL for ID {media_id}. Response: {response_get_url.text}")
+            meta_api_logger.error(f"Failed to get media metadata for ID {media_id}. Response: {response_get_url.text}")
             return None, None
-        
-        media_data = response_get_url.json()
-        download_url, mime_type = media_data.get('url'), media_data.get('mime_type')
-        if not download_url or not mime_type:
-             meta_api_logger.error(f"Missing URL or MIME type in media data for ID {media_id}")
-             return None, None
 
-        # Step 2: Download the actual media file
+        media_data = response_get_url.json()
+        download_url = media_data.get('url') or media_data.get('uri')  # sometimes named differently
+        mime_type = media_data.get('mime_type') or media_data.get('mimetype')
+        if not download_url:
+            meta_api_logger.error(f"No download URL in media data for ID {media_id}: {media_data}")
+            return None, None
+
+        # download the actual file (use same auth header)
         response_download = requests.get(download_url, headers=headers, timeout=20)
         if response_download.status_code != 200:
             meta_api_logger.error(f"Failed to download media from {download_url}. Status: {response_download.status_code}")
             return None, None
-            
-        # Step 3: Save the file locally
-        file_extension = mime_type.split('/')[-1].split(';')[0]
-        file_type = mime_type.split('/')[0]
-        if file_type not in ['image', 'audio']:
-             meta_api_logger.warning(f"Unsupported media type received: {file_type}")
-             return None, None
 
+        # determine extension and type
+        if not mime_type:
+            mime_type = response_download.headers.get('Content-Type', '')
+
+        file_extension = 'bin'
+        if mime_type:
+            guessed_ext = mimetypes.guess_extension(mime_type.split(';')[0].strip())
+            if guessed_ext:
+                file_extension = guessed_ext.lstrip('.')  # remove leading dot
+
+        file_type = (mime_type.split('/')[0] if mime_type else '').lower()
+        if file_type not in ['image', 'audio']:
+            # fallback: inspect extension from url
+            if any(download_url.lower().endswith(ext) for ext in ('.jpg','.jpeg','.png','.gif','.webp')):
+                file_type = 'image'
+            elif any(download_url.lower().endswith(ext) for ext in ('.mp3','.ogg','.amr','.wav','.m4a')):
+                file_type = 'audio'
+            else:
+                meta_api_logger.warning(f"Unsupported media type: {mime_type} for id {media_id}")
+                return None, None
+
+        # secure filename
         file_name = f"{uuid4()}.{file_extension}"
+        # save into MEDIA_ROOT/<file_type>/<file_name>
         media_dir = os.path.join(settings.MEDIA_ROOT, file_type)
         os.makedirs(media_dir, exist_ok=True)
-        
-        with open(os.path.join(media_dir, file_name), 'wb') as f:
+        file_full_path = os.path.join(media_dir, file_name)
+        with open(file_full_path, 'wb') as f:
             f.write(response_download.content)
-            
-        web_path = f"/static/media/{file_type}/{file_name}"
+
+        # log the real disk path + public path
+        web_path = f"/media/{file_type}/{file_name}"
+        meta_api_logger.info(f"Saved media for {media_id} to {file_full_path} -> {web_path}")
         return web_path, file_type
+
+
     except requests.exceptions.RequestException as e:
         meta_api_logger.error(f"Network error while processing media ID {media_id}: {e}")
         return None, None
+    except Exception as e:
+        meta_api_logger.error(f"Unexpected error saving media ID {media_id}: {e}")
+        return None, None
+    
 
+
+def serve_media(request, path):
+    """
+    Serve files from MEDIA_ROOT for /media/<path> requests.
+    Temporary solution for Render until you move to object storage.
+    """
+    full_path = os.path.join(settings.MEDIA_ROOT, path)
+    if not os.path.exists(full_path):
+        meta_api_logger.warning(f"Media file not found: {full_path}")
+        raise Http404("Media not found")
+    content_type, _ = mimetypes.guess_type(full_path)
+    try:
+        return FileResponse(open(full_path, 'rb'), content_type=content_type or 'application/octet-stream')
+    except Exception as e:
+        meta_api_logger.error(f"Error sending media file {full_path}: {e}")
+        raise Http404("Media read error")
+    
+        
 # --- Your existing helper ---
 def send_otp_to_admin(code):
     # This function is unchanged
