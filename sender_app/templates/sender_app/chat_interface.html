@@ -8,14 +8,13 @@
     <link rel="stylesheet" href="{% static 'sender_app/css/styles.css' %}">
 </head>
 <body>
-    <!-- Modal is unchanged -->
     <div id="add-chat-modal" class="modal hidden">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal()">&times;</span>
             <h3>Start a New Chat</h3>
             <form id="add-chat-form" class="modal-form">
-                <input type="text" id="new-chat-number" name="phone_number" placeholder="Enter phone number (e.g., 15551234567)" required>
-                <input type="text" id="new-chat-template" name="template_name" placeholder="Enter template name (e.g., hello_world)" required>
+                <input type="tel" id="new-chat-number" placeholder="Enter phone number (e.g., 15551234567)" required>
+                <input type="text" id="new-chat-template" placeholder="Enter template name (e.g., hello_world)" required>
                 <button type="submit">Send Template & Start Chat</button>
                 <div id="modal-error" class="hidden"></div>
             </form>
@@ -23,7 +22,6 @@
     </div>
 
     <div class="app-container">
-        <!-- Sidebar -->
         <aside class="sidebar">
             <header class="sidebar-header">
                 <div class="header-top-row">
@@ -34,28 +32,28 @@
                     </button>
                     <div class="header-actions">
                         <button class="action-btn" title="New Chat" onclick="openModal()">
-                            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M19.005 3.175H4.674C3.642 3.175 3 3.784 3 4.792v10.327c0 .525.22 1.023.6 1.394l2.85 2.851c.371.371.87.592 1.394.592h11.161c1.032 0 1.64-1.284 1.64-2.292V4.792c0-1.008-.608-1.617-1.64-1.617zM4.674 4.425h14.331c.448 0 .448.425.448.867v10.327c0 .442 0 .867-.448.867H8.918a.563.563 0 0 1-.398-.166L5.67 13.52a.563.563 0 0 1-.166-.398V4.792c0-.442.02-.367.448-.367zM11 11.25H8v1.5h3v3h1.5v-3h3v-1.5h-3v-3H11v3z"></path></svg>
+                            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M22 4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14l4 4V4z M11 11H8v2h3v3h2v-3h3v-2h-3V8h-2v3z"></path></svg>
                         </button>
                         <form action="{% url 'logout_view' %}" method="post" style="display: flex;">
                             {% csrf_token %}
                             <button type="submit" class="action-btn" title="Logout">
-                                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 4l1.4 1.4L7.8 11H20v2H7.8l5.6 5.6L12 20l-8-8 8-8z"></path></svg>
+                                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5a2 2 0 0 0-2 2v4h2V5h14v14H5v-4H3v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"></path></svg>
                             </button>
                         </form>
                     </div>
                 </div>
                 <div class="search-container">
                     <div class="search-bar">
-                        <input type="text" id="search-contacts" placeholder="Search..." onkeyup="searchContacts()">
+                        <input type="text" id="search-input" placeholder="Search or start new chat">
                     </div>
-                    <button id="clear-search-btn" class="clear-search-btn hidden" onclick="clearSearch()">&times;</button>
+                    <button id="clear-search-btn" class="clear-search-btn hidden">&times;</button>
                 </div>
             </header>
-            <div class="contact-list" id="contact-list-panel">
+            <div class="contact-list" id="contact-list">
                 {% for contact in contacts %}
-                    <div class="contact-item" data-phone="{{ contact }}" onclick="loadChat('{{ contact }}')">
+                    <div class="contact-item" data-phone="{{ contact }}">
                         <span class="contact-name">{{ contact }}</span>
-                        <button class="delete-chat-btn" onclick="deleteChat(event, '{{ contact }}')">
+                        <button class="delete-chat-btn">
                             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
                         </button>
                     </div>
@@ -63,7 +61,6 @@
             </div>
         </aside>
 
-        <!-- Main Chat Panel -->
         <main class="chat-panel" id="chat-panel">
             <div id="chat-placeholder" class="">
                 <h2>Select a chat to start messaging</h2>
@@ -84,125 +81,105 @@
     </div>
 
     <script>
-        let currentChatSocket = null;
-        let activePhoneNumber = null;
-        let searchTimeout;
+        const DOM = {
+            contactList: document.getElementById('contact-list'),
+            chatPanel: document.getElementById('chat-panel'),
+            chatPlaceholder: document.getElementById('chat-placeholder'),
+            activeChatArea: document.getElementById('active-chat-area'),
+            chatHeader: document.getElementById('chat-header'),
+            chatLog: document.getElementById('chat-log'),
+            chatLogContainer: document.getElementById('chat-log-container'),
+            messageInput: document.getElementById('chat-message-input'),
+            messageSubmit: document.getElementById('chat-message-submit'),
+            searchInput: document.getElementById('search-input'),
+            clearSearchBtn: document.getElementById('clear-search-btn'),
+            sidebarTitle: document.getElementById('sidebar-title'),
+            backBtn: document.getElementById('back-btn'),
+            modal: document.getElementById('add-chat-modal'),
+            modalError: document.getElementById('modal-error'),
+            addChatForm: document.getElementById('add-chat-form'),
+        };
+
+        let state = {
+            activePhoneNumber: null,
+            chatSocket: null,
+            searchTimeout: null,
+        };
 
         function scrollToBottom() {
-            const chatLog = document.getElementById('chat-log');
-            chatLog.scrollTop = chatLog.scrollHeight;
+            DOM.chatLog.scrollTop = DOM.chatLog.scrollHeight;
+        }
+
+        function setupWebSocket(phoneNumber) {
+            if (state.chatSocket) state.chatSocket.close();
+            
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const wsPath = `${protocol}${window.location.host}/ws/chat/${phoneNumber}/`;
+            state.chatSocket = new WebSocket(wsPath);
+
+            state.chatSocket.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                moveContactToTop(data.sender_id);
+                if (state.activePhoneNumber === data.sender_id) {
+                    appendMessage(data.message, data.is_from_user);
+                }
+            };
+            state.chatSocket.onerror = (e) => console.error('WebSocket error:', e);
         }
 
         function loadChat(phoneNumber) {
-            activePhoneNumber = phoneNumber;
-            document.getElementById('chat-placeholder').classList.add('hidden');
-            document.getElementById('active-chat-area').classList.remove('hidden');
+            state.activePhoneNumber = phoneNumber;
+            DOM.chatPlaceholder.classList.add('hidden');
+            DOM.activeChatArea.classList.remove('hidden');
 
             document.querySelectorAll('.contact-item').forEach(el => el.classList.remove('active'));
             const activeContactEl = document.querySelector(`.contact-item[data-phone="${phoneNumber}"]`);
             if (activeContactEl) activeContactEl.classList.add('active');
 
-            const chatLogContainer = document.getElementById('chat-log-container');
-            const chatHeader = document.getElementById('chat-header');
-            chatHeader.textContent = phoneNumber;
-            chatLogContainer.innerHTML = '<div style="text-align: center; color: var(--text-secondary);">Loading history...</div>';
+            DOM.chatHeader.textContent = phoneNumber;
+            DOM.chatLogContainer.innerHTML = '<div style="text-align: center; color: var(--text-secondary);">Loading...</div>';
 
-            if (document.getElementById('search-contacts').value.trim() !== '') {
-                document.getElementById('sidebar-title').classList.add('hidden');
-                document.getElementById('back-btn').classList.remove('hidden');
+            if (DOM.searchInput.value.trim() !== '') {
+                DOM.sidebarTitle.classList.add('hidden');
+                DOM.backBtn.classList.remove('hidden');
             }
-
-            if (currentChatSocket) currentChatSocket.close();
 
             fetch(`/api/chat/${phoneNumber}/`)
                 .then(response => response.json())
                 .then(data => {
-                    chatLogContainer.innerHTML = '';
+                    DOM.chatLogContainer.innerHTML = '';
                     data.messages.forEach(msg => appendMessage(msg.message_text, msg.is_from_user));
-                    scrollToBottom();
                 });
-
-            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            const wsPath = `${protocol}${window.location.host}/ws/chat/${phoneNumber}/`;
-            currentChatSocket = new WebSocket(wsPath);
-
-            currentChatSocket.onmessage = function(e) {
-                const data = JSON.parse(e.data);
-                moveContactToTop(data.sender_id);
-                if (activePhoneNumber === data.sender_id) {
-                    appendMessage(data.message, data.is_from_user);
-                }
-            };
-            currentChatSocket.onerror = (e) => console.error('WebSocket error:', e);
+            
+            setupWebSocket(phoneNumber);
         }
 
         function appendMessage(message, isFromUser) {
-            const chatLogContainer = document.getElementById('chat-log-container'); // messages parent
-            const scrollContainer = document.getElementById('chat-log'); // the scrollable element
-
             const messageEl = document.createElement('div');
             messageEl.className = `message-bubble ${isFromUser ? 'message-in' : 'message-out'}`;
             messageEl.textContent = message;
-
-            chatLogContainer.appendChild(messageEl);
-
-    // ensure we scroll after layout is updated
-            requestAnimationFrame(() => {
-            scrollContainer.scrollTop = scrollContainer.scrollHeight;
-            });
+            DOM.chatLogContainer.appendChild(messageEl);
+            scrollToBottom();
         }
-
-
 
         function sendMessage() {
-            const messageInput = document.getElementById('chat-message-input');
-            const message = messageInput.value.trim();
-            if (message === '' || !currentChatSocket || currentChatSocket.readyState !== WebSocket.OPEN) return;
-            currentChatSocket.send(JSON.stringify({ 'message': message, 'type': 'text' }));
-            messageInput.value = '';
+            const message = DOM.messageInput.value.trim();
+            if (message === '' || !state.chatSocket || state.chatSocket.readyState !== WebSocket.OPEN) return;
+            state.chatSocket.send(JSON.stringify({ 'message': message, 'type': 'text' }));
+            DOM.messageInput.value = '';
         }
 
-        document.getElementById('chat-message-submit').onclick = sendMessage;
-        document.getElementById('chat-message-input').onkeyup = (e) => { if (e.key === 'Enter') sendMessage(); };
-
-        const modal = document.getElementById('add-chat-modal');
-        const modalError = document.getElementById('modal-error');
-        function openModal() { modal.classList.remove('hidden'); }
+        function openModal() { DOM.modal.classList.remove('hidden'); }
         function closeModal() {
-            modal.classList.add('hidden');
-            modalError.classList.add('hidden');
-            document.getElementById('add-chat-form').reset();
+            DOM.modal.classList.add('hidden');
+            DOM.modalError.classList.add('hidden');
+            DOM.addChatForm.reset();
         }
-        document.getElementById('add-chat-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const phoneNumber = document.getElementById('new-chat-number').value;
-            const templateName = document.getElementById('new-chat-template').value;
-            const submitButton = this.querySelector('button');
-            submitButton.disabled = true;
-            fetch("{% url 'start_new_chat' %}", {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                body: JSON.stringify({ phone_number: phoneNumber, template_name: templateName })
-            }).then(response => response.json()).then(data => {
-                if (data.success) {
-                    closeModal();
-                    if (!document.querySelector(`.contact-item[data-phone="${data.phone_number}"]`)) {
-                        addContactToList(data.phone_number, true);
-                    }
-                    loadChat(data.phone_number);
-                    moveContactToTop(data.phone_number);
-                } else {
-                    modalError.textContent = data.error || 'An unknown error occurred.';
-                    modalError.classList.remove('hidden');
-                }
-            }).finally(() => { submitButton.disabled = false; });
-        });
-        
+
         function moveContactToTop(phoneNumber) {
-            const contactList = document.getElementById('contact-list-panel');
             let contactToMove = document.querySelector(`.contact-item[data-phone="${phoneNumber}"]`);
             if (contactToMove) {
-                contactList.prepend(contactToMove);
+                DOM.contactList.prepend(contactToMove);
             } else {
                 addContactToList(phoneNumber, true);
             }
@@ -210,35 +187,31 @@
         
         function deleteChat(event, phoneNumber) {
             event.stopPropagation();
-            if (confirm(`Delete chat with ${phoneNumber}?`)) {
-                fetch(`/api/delete_chat/${phoneNumber}/`, {
-                    method: 'DELETE',
-                    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
-                }).then(response => response.json()).then(data => {
-                    if (data.success) {
-                        const contactEl = document.querySelector(`.contact-item[data-phone="${phoneNumber}"]`);
-                        if (contactEl) contactEl.remove();
-                        if (activePhoneNumber === phoneNumber) {
-                            document.getElementById('active-chat-area').classList.add('hidden');
-                            document.getElementById('chat-placeholder').classList.remove('hidden');
-                            activePhoneNumber = null;
-                            if(currentChatSocket) currentChatSocket.close();
-                        }
-                    } else {
-                        alert('Error: ' + (data.error || 'Unknown error'));
+            if (!confirm(`Delete chat with ${phoneNumber}?`)) return;
+            fetch(`/api/delete_chat/${phoneNumber}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+            }).then(response => response.json()).then(data => {
+                if (data.success) {
+                    const contactEl = document.querySelector(`.contact-item[data-phone="${phoneNumber}"]`);
+                    if (contactEl) contactEl.remove();
+                    if (state.activePhoneNumber === phoneNumber) {
+                        DOM.activeChatArea.classList.add('hidden');
+                        DOM.chatPlaceholder.classList.remove('hidden');
+                        state.activePhoneNumber = null;
+                        if(state.chatSocket) state.chatSocket.close();
                     }
-                });
-            }
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            });
         }
 
-        const searchInput = document.getElementById('search-contacts');
-        const clearSearchBtn = document.getElementById('clear-search-btn');
-
         function searchContacts() {
-            clearTimeout(searchTimeout);
-            const searchTerm = searchInput.value;
-            clearSearchBtn.classList.toggle('hidden', searchTerm.trim() === '');
-            searchTimeout = setTimeout(() => {
+            clearTimeout(state.searchTimeout);
+            const searchTerm = DOM.searchInput.value;
+            DOM.clearSearchBtn.classList.toggle('hidden', searchTerm.trim() === '');
+            state.searchTimeout = setTimeout(() => {
                 fetch(`/api/search_chats/?q=${encodeURIComponent(searchTerm)}`)
                     .then(response => response.json())
                     .then(data => updateContactList(data.contacts));
@@ -246,9 +219,9 @@
         }
         
         function clearSearch() {
-            searchInput.value = '';
-            document.getElementById('back-btn').classList.add('hidden');
-            document.getElementById('sidebar-title').classList.remove('hidden');
+            DOM.searchInput.value = '';
+            DOM.backBtn.classList.add('hidden');
+            DOM.sidebarTitle.classList.remove('hidden');
             searchContacts();
         }
         
@@ -257,34 +230,62 @@
         }
 
         function addContactToList(contact, prepend = false) {
-            const contactListPanel = document.getElementById('contact-list-panel');
             const newContactEl = document.createElement('div');
             newContactEl.className = 'contact-item';
             newContactEl.dataset.phone = contact;
             newContactEl.innerHTML = `
                 <span class="contact-name">${contact}</span>
-                <button class="delete-chat-btn" onclick="deleteChat(event, '${contact}')">
+                <button class="delete-chat-btn">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
                 </button>`;
-            newContactEl.onclick = () => loadChat(contact);
-            if (prepend) contactListPanel.prepend(newContactEl);
-            else contactListPanel.appendChild(newContactEl);
+            if (prepend) DOM.contactList.prepend(newContactEl);
+            else DOM.contactList.appendChild(newContactEl);
         }
 
         function updateContactList(contacts) {
-            const contactListPanel = document.getElementById('contact-list-panel');
-            contactListPanel.innerHTML = '';
+            DOM.contactList.innerHTML = '';
             if (contacts.length === 0) {
-                contactListPanel.innerHTML = '<div class="no-results">No chats found.</div>';
+                DOM.contactList.innerHTML = '<div class="no-results">No chats found.</div>';
             } else {
-                contacts.forEach(contact => {
-                    addContactToList(contact, false);
-                    if (contact === activePhoneNumber) {
-                        document.querySelector(`.contact-item[data-phone="${contact}"]`).classList.add('active');
-                    }
-                });
+                contacts.forEach(contact => addContactToList(contact));
+                if (state.activePhoneNumber && document.querySelector(`.contact-item[data-phone="${state.activePhoneNumber}"]`)) {
+                    document.querySelector(`.contact-item[data-phone="${state.activePhoneNumber}"]`).classList.add('active');
+                }
             }
         }
+
+        // --- Event Listeners ---
+        DOM.messageSubmit.addEventListener('click', sendMessage);
+        DOM.messageInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') sendMessage(); });
+        DOM.searchInput.addEventListener('keyup', searchContacts);
+        DOM.clearSearchBtn.addEventListener('click', clearSearch);
+        DOM.addChatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const phoneNumber = document.getElementById('new-chat-number').value;
+            const templateName = document.getElementById('new-chat-template').value;
+            fetch("{% url 'start_new_chat' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ phone_number: phoneNumber, template_name: templateName })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    closeModal();
+                    if (!document.querySelector(`.contact-item[data-phone="${data.phone_number}"]`)) {
+                        addContactToList(data.phone_number, true);
+                    }
+                    loadChat(data.phone_number);
+                } else {
+                    DOM.modalError.textContent = data.error || 'An unknown error occurred.';
+                    DOM.modalError.classList.remove('hidden');
+                }
+            });
+        });
+        
+        // Add event listeners to initial contacts
+        document.querySelectorAll('.contact-item').forEach(item => {
+            item.addEventListener('click', () => loadChat(item.dataset.phone));
+            item.querySelector('.delete-chat-btn').addEventListener('click', (e) => deleteChat(e, item.dataset.phone));
+        });
     </script>
 </body>
 </html>
