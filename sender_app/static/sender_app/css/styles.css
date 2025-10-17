@@ -48,12 +48,23 @@ body, html { height: 100%; margin: 0; font-family: -apple-system, BlinkMacSystem
 .chat-header { padding: 10px 16px; background-color: var(--header-bg); color: var(--text-primary); font-weight: 500; flex-shrink: 0; border-bottom: 1px solid var(--border-color); }
 
 /* --- THIS IS THE FIX --- */
-.chat-log { 
-    flex-grow: 1; 
-    padding: 20px; 
-    overflow-y: auto;  /* This makes it scrollable */
-    display: flex; 
-    flex-direction: column-reverse; /* Keeps new messages at the bottom */
+.chat-log {
+    flex-grow: 1;
+    padding: 20px;
+    overflow-y: auto;        /* makes it scrollable */
+    display: flex;
+    flex-direction: column;  /* normal flow (new messages at bottom) */
+    gap: 10px;
+}
+
+
+.chat-log-container {
+    max-width: 800px;
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 8px;
 }
 /* --- END OF FIX --- */
 

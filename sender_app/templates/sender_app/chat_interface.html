@@ -127,12 +127,19 @@
         }
 
         function appendMessage(message, isFromUser) {
-            const chatLog = document.getElementById('chat-log-container');
-            const messageEl = document.createElement('div');
-            messageEl.className = `message-bubble ${isFromUser ? 'message-in' : 'message-out'}`;
-            messageEl.textContent = message;
-            chatLog.appendChild(messageEl);
-            chatLog.parentElement.scrollTop = chatLog.parentElement.scrollHeight;
+        const chatLogContainer = document.getElementById('chat-log-container'); // where messages go
+        const scrollContainer = document.getElementById('chat-log'); // the scrollable element
+
+        const messageEl = document.createElement('div');
+        messageEl.className = `message-bubble ${isFromUser ? 'message-in' : 'message-out'}`;
+        messageEl.textContent = message;
+
+        chatLogContainer.appendChild(messageEl);
+
+        // wait one tick so the browser lays out the new element, then scroll to bottom
+        setTimeout(() => {
+            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        }, 0);
         }
 
         function sendMessage() {
