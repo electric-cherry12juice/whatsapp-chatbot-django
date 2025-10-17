@@ -13,7 +13,10 @@ urlpatterns = [
     # --- API Endpoints (for JavaScript) ---
     path('api/chat/<str:phone_number>/', views.get_chat_history_json, name='get_chat_history'),
     path('api/start_chat/', views.start_new_chat_view, name='start_new_chat'),
-    path('api/search_chats/', views.search_chats_json, name='search_chats'), # NEW SEARCH URL
+    path('api/search_chats/', views.search_chats_json, name='search_chats'),
+    
+    # --- ADD THIS NEW LINE FOR DELETING CHATS ---
+    path('api/delete_chat/<str:phone_number>/', views.delete_chat_view, name='delete_chat'),
 
     # --- Webhook for Meta ---
     path('webhook', views.webhook_view, name='webhook'),

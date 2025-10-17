@@ -200,6 +200,18 @@ def webhook_view(request):
              return HttpResponse("Invalid verification token", status=403)
     return HttpResponse(status=405)
 
+
+@custom_login_required
+def delete_chat_view(request, phone_number):
+    if request.method == 'DELETE':
+        # Find all messages associated with the phone number and delete them
+        deleted_count, _ = ChatMessage.objects.filter(sender_id=phone_number).delete()
+        if deleted_count > 0:
+            return JsonResponse({'success': True, 'message': f'Chat history with {phone_number} deleted.'})
+        else:
+            return JsonResponse({'success': False, 'error': 'No chat history found for this number.'}, status=404)
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
+
 def health_check_view(request):
     return JsonResponse({"status": "ok"})
 

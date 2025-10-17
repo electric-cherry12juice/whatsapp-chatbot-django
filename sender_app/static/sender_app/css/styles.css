@@ -69,3 +69,31 @@ body, html { height: 100%; margin: 0; font-family: -apple-system, BlinkMacSystem
 .modal-form input { width: 100%; box-sizing: border-box; border: 1px solid var(--border-color); padding: 10px; border-radius: 5px; background-color: var(--search-bg); color: var(--text-primary); }
 .modal-form button { background-color: var(--message-out-bg); color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; }
 #modal-error { color: #f44336; font-size: 0.9rem; margin-top: 10px; }
+
+
+.chat-panel { 
+    flex-grow: 1; 
+    display: flex; 
+    flex-direction: column; 
+    background-color: var(--chat-panel-bg); 
+}
+.chat-log { 
+    flex-grow: 1; 
+    padding: 20px; 
+    overflow-y: auto; 
+    display: flex; 
+    flex-direction: column; 
+}
+.search-container { 
+    position: relative; 
+    display: flex; 
+    align-items: center; 
+}
+.clear-search-btn { 
+    position: absolute; 
+    right: 10px; 
+    /* ... more styles ... */
+}
+.contact-item:hover .delete-chat-btn { 
+    display: block; 
+}
