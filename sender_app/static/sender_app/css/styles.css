@@ -141,6 +141,20 @@ body, html {
 #modal-error { color: var(--danger-red); font-size: 0.9rem; margin-top: 10px; }
 .no-results { padding: 15px; text-align: center; color: var(--text-secondary); }
 
+
+.message-bubble img {
+    max-width: 100%;
+    border-radius: 5px;
+    display: block; /* Removes any extra space below the image */
+}
+
+.message-bubble audio {
+    width: 100%;
+    min-width: 250px; /* Ensures the player is not too small */
+    display: block;
+}
+
+
 /* --- CUSTOM SCROLLBAR --- */
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }

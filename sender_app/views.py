@@ -12,18 +12,63 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from .models import ChatMessage
 from django.db.models import Max, Q
+from uuid import uuid4
 
-# Get our custom logger
 meta_api_logger = logging.getLogger('meta_api_logger')
 
+# --- NEW HELPER: Downloads and saves media from WhatsApp ---
+def process_whatsapp_media(media_id):
+    access_token = os.environ.get('WHATSAPP_ACCESS_TOKEN')
+    version = os.environ.get('WHATSAPP_API_VERSION', 'v20.0')
+    
+    # Step 1: Get Media URL from Meta
+    url_get_media = f"https://graph.facebook.com/{version}/{media_id}"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        response_get_url = requests.get(url_get_media, headers=headers, timeout=15)
+        if response_get_url.status_code != 200:
+            meta_api_logger.error(f"Failed to get media URL for ID {media_id}. Response: {response_get_url.text}")
+            return None, None
+        
+        media_data = response_get_url.json()
+        download_url, mime_type = media_data.get('url'), media_data.get('mime_type')
+        if not download_url or not mime_type:
+             meta_api_logger.error(f"Missing URL or MIME type in media data for ID {media_id}")
+             return None, None
 
-# --- Helper Function to Send OTP to Admin ---
+        # Step 2: Download the actual media file
+        response_download = requests.get(download_url, headers=headers, timeout=20)
+        if response_download.status_code != 200:
+            meta_api_logger.error(f"Failed to download media from {download_url}. Status: {response_download.status_code}")
+            return None, None
+            
+        # Step 3: Save the file locally
+        file_extension = mime_type.split('/')[-1].split(';')[0]
+        file_type = mime_type.split('/')[0]
+        if file_type not in ['image', 'audio']:
+             meta_api_logger.warning(f"Unsupported media type received: {file_type}")
+             return None, None
+
+        file_name = f"{uuid4()}.{file_extension}"
+        media_dir = os.path.join(settings.MEDIA_ROOT, file_type)
+        os.makedirs(media_dir, exist_ok=True)
+        
+        with open(os.path.join(media_dir, file_name), 'wb') as f:
+            f.write(response_download.content)
+            
+        web_path = f"/media/{file_type}/{file_name}"
+        return web_path, file_type
+    except requests.exceptions.RequestException as e:
+        meta_api_logger.error(f"Network error while processing media ID {media_id}: {e}")
+        return None, None
+
+# --- Your existing helper ---
 def send_otp_to_admin(code):
+    # This function is unchanged
     admin_number = settings.ADMIN_PHONE_NUMBER
     if not admin_number:
         meta_api_logger.critical("ADMIN_PHONE_NUMBER is not set in environment variables!")
         return False
-    # ... rest of the function is the same ...
     access_token = os.environ.get('WHATSAPP_ACCESS_TOKEN')
     phone_number_id = os.environ.get('WHATSAPP_PHONE_NUMBER_ID')
     version = os.environ.get('WHATSAPP_API_VERSION', 'v20.0')
@@ -40,7 +85,7 @@ def send_otp_to_admin(code):
         meta_api_logger.error(f"OTP Send Request failed for ADMIN: {e}")
         return False
 
-# --- Authentication Views ---
+# --- Your existing auth views (unchanged) ---
 def login_view(request):
     if request.session.get('is_authenticated'):
         return redirect('chat_interface')
@@ -73,7 +118,6 @@ def logout_view(request):
     request.session.flush()
     return redirect(reverse('login_view'))
 
-# --- Custom Decorator ---
 def custom_login_required(view_func):
     def _wrapped_view(request, *args, **kwargs):
         if not request.session.get('is_authenticated'):
@@ -81,22 +125,19 @@ def custom_login_required(view_func):
         return view_func(request, *args, **kwargs)
     return _wrapped_view
 
-# --- Main Application Views ---
+# --- Main Application Views (chat_history UPGRADED) ---
 @custom_login_required
 def chat_interface_view(request):
     contacts = ChatMessage.objects.values('sender_id').annotate(
         latest_message=Max('timestamp')
     ).order_by('-latest_message').values_list('sender_id', flat=True)
-    
-    return render(request, 'sender_app/chat_interface.html', {
-        'contacts': contacts, 
-        'username': request.session.get('authenticated_user')
-    })
+    return render(request, 'sender_app/chat_interface.html', {'contacts': contacts})
 
 @custom_login_required
 def get_chat_history_json(request, phone_number):
     messages = ChatMessage.objects.filter(sender_id=phone_number).order_by('timestamp')
-    message_list = list(messages.values('message_text', 'is_from_user'))
+    # UPGRADED: Now returns media_url as well for displaying old media
+    message_list = list(messages.values('message_text', 'media_url', 'is_from_user'))
     return JsonResponse({'messages': message_list})
 
 @custom_login_required
@@ -116,17 +157,14 @@ def search_chats_json(request):
     return JsonResponse({'contacts': contacts})
 
 
+# --- send_template_message (UPGRADED for number validation) ---
 def send_template_message(phone_number, template_name):
-    # This helper function logic remains the same
     access_token = os.environ.get('WHATSAPP_ACCESS_TOKEN')
     phone_number_id = os.environ.get('WHATSAPP_PHONE_NUMBER_ID')
     version = os.environ.get('WHATSAPP_API_VERSION', 'v20.0')
     url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-    payload = {
-        "messaging_product": "whatsapp", "to": phone_number, "type": "template",
-        "template": {"name": template_name, "language": {"code": "en_US"}},
-    }
+    payload = {"messaging_product": "whatsapp", "to": phone_number, "type": "template", "template": {"name": template_name, "language": {"code": "en_US"}}}
     meta_api_logger.info(f"Starting new chat with {phone_number}. Payload: {json.dumps(payload)}")
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=15)
@@ -136,7 +174,8 @@ def send_template_message(phone_number, template_name):
             return {'success': True, 'data': response_data}
         else:
             error_message = response_data.get('error', {}).get('message', 'An unknown error occurred.')
-            if "not a valid WhatsApp user" in error_message or "Recipient phone number not in allowed list" in error_message:
+            error_details = response_data.get('error', {}).get('error_data', {}).get('details', '')
+            if "not a valid WhatsApp user" in error_message or "Recipient phone number not in allowed list" in error_message or "does not exist" in error_details:
                 return {'success': False, 'error': 'This phone number is not a valid WhatsApp user.'}
             return {'success': False, 'error': error_message}
     except requests.exceptions.RequestException as e:
@@ -163,7 +202,7 @@ def start_new_chat_view(request):
             return JsonResponse({'success': False, 'error': result['error']}, status=400)
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
-# --- Webhook ---
+# --- Webhook (UPGRADED for media) ---
 @csrf_exempt
 def webhook_view(request):
     if request.method == "POST":
@@ -173,25 +212,38 @@ def webhook_view(request):
             if 'entry' in data and data['entry'][0].get('changes', [{}])[0].get('value', {}).get('messages'):
                 message_data = data['entry'][0]['changes'][0]['value']['messages'][0]
                 sender_id = message_data['from']
-                message_text = message_data['text']['body']
+                message_type = message_data['type']
                 
-                ChatMessage.objects.create(sender_id=sender_id, message_text=message_text, is_from_user=True)
+                content_for_broadcast = None
                 
-                channel_layer = get_channel_layer()
-                # THE FIX IS HERE: We now include the sender_id in the broadcast event
-                async_to_sync(channel_layer.group_send)(
-                    f'chat_{sender_id}',
-                    {
-                        'type': 'chat_message',
-                        'message': message_text,
-                        'is_from_user': True,
-                        'sender_id': sender_id # This was missing!
-                    }
-                )
+                if message_type == 'text':
+                    message_text = message_data['text']['body']
+                    ChatMessage.objects.create(sender_id=sender_id, message_text=message_text, is_from_user=True, message_type='text')
+                    content_for_broadcast = message_text
+                
+                elif message_type in ['image', 'audio']:
+                    media_id = message_data[message_type]['id']
+                    media_path, media_type_str = process_whatsapp_media(media_id)
+                    if media_path:
+                        ChatMessage.objects.create(sender_id=sender_id, media_url=media_path, is_from_user=True, message_type=media_type_str)
+                        content_for_broadcast = media_path
+
+                if content_for_broadcast:
+                    channel_layer = get_channel_layer()
+                    async_to_sync(channel_layer.group_send)(
+                        f'chat_{sender_id}',
+                        {
+                            'type': 'chat_message',
+                            'message': content_for_broadcast,
+                            'is_from_user': True,
+                            'sender_id': sender_id
+                        }
+                    )
         except (IndexError, KeyError) as e:
             meta_api_logger.warning(f"Could not parse webhook data: {e} - Data: {json.dumps(data)}")
         return HttpResponse(status=200)
 
+    # ... (GET verification logic is unchanged)
     if request.method == "GET":
         verify_token = os.environ.get('WHATSAPP_WEBHOOK_VERIFY_TOKEN')
         if request.GET.get("hub.verify_token") == verify_token:
@@ -199,7 +251,6 @@ def webhook_view(request):
         else:
              return HttpResponse("Invalid verification token", status=403)
     return HttpResponse(status=405)
-
 
 @custom_login_required
 def delete_chat_view(request, phone_number):
@@ -214,4 +265,3 @@ def delete_chat_view(request, phone_number):
 
 def health_check_view(request):
     return JsonResponse({"status": "ok"})
-
