@@ -146,11 +146,12 @@
 
             chatLogContainer.appendChild(messageEl);
 
-    // scroll after layout completes
+    // ensure we scroll after layout is updated
             requestAnimationFrame(() => {
-                scrollContainer.scrollTop = scrollContainer.scrollHeight;
+            scrollContainer.scrollTop = scrollContainer.scrollHeight;
             });
-            }
+        }
+
 
 
         function sendMessage() {
