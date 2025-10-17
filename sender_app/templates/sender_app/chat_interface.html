@@ -81,7 +81,6 @@
     </div>
 
     <script>
-        // --- DOM Elements & State ---
         const DOM = {
             contactList: document.getElementById('contact-list'),
             chatPanel: document.getElementById('chat-panel'),
@@ -107,7 +106,6 @@
             searchTimeout: null,
         };
 
-        // --- CORE CHAT FUNCTIONS ---
         function scrollToBottom() {
             DOM.chatLog.scrollTop = DOM.chatLog.scrollHeight;
         }
@@ -171,7 +169,6 @@
             moveContactToTop(state.activePhoneNumber);
         }
 
-        // --- UX FEATURE FUNCTIONS ---
         function openModal() { DOM.modal.classList.remove('hidden'); }
         function closeModal() {
             DOM.modal.classList.add('hidden');
@@ -259,33 +256,35 @@
         }
 
         // --- INITIAL EVENT LISTENERS ---
-        DOM.messageSubmit.addEventListener('click', sendMessage);
-        DOM.messageInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') sendMessage(); });
-        DOM.searchInput.addEventListener('keyup', searchContacts);
-        DOM.clearSearchBtn.addEventListener('click', clearSearch);
-        DOM.addChatForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            fetch("{% url 'start_new_chat' %}", {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                body: JSON.stringify({ phone_number: DOM.addChatForm.elements.phone_number.value, template_name: DOM.addChatForm.elements.template_name.value })
-            }).then(r => r.json()).then(data => {
-                if (data.success) {
-                    closeModal();
-                    if (!document.querySelector(`.contact-item[data-phone="${data.phone_number}"]`)) {
-                        addContactToList(data.phone_number, true);
+        document.addEventListener('DOMContentLoaded', () => {
+            DOM.messageSubmit.addEventListener('click', sendMessage);
+            DOM.messageInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') sendMessage(); });
+            DOM.searchInput.addEventListener('keyup', searchContacts);
+            DOM.clearSearchBtn.addEventListener('click', clearSearch);
+            DOM.addChatForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                fetch("{% url 'start_new_chat' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                    body: JSON.stringify({ phone_number: DOM.addChatForm.elements.phone_number.value, template_name: DOM.addChatForm.elements.template_name.value })
+                }).then(r => r.json()).then(data => {
+                    if (data.success) {
+                        closeModal();
+                        if (!document.querySelector(`.contact-item[data-phone="${data.phone_number}"]`)) {
+                            addContactToList(data.phone_number, true);
+                        }
+                        loadChat(data.phone_number);
+                    } else {
+                        DOM.modalError.textContent = data.error || 'An error occurred.';
+                        DOM.modalError.classList.remove('hidden');
                     }
-                    loadChat(data.phone_number);
-                } else {
-                    DOM.modalError.textContent = data.error || 'An error occurred.';
-                    DOM.modalError.classList.remove('hidden');
-                }
+                });
             });
-        });
-        
-        document.querySelectorAll('.contact-item').forEach(item => {
-            item.addEventListener('click', () => loadChat(item.dataset.phone));
-            item.querySelector('.delete-chat-btn').addEventListener('click', (e) => deleteChat(e, item.dataset.phone));
+            
+            document.querySelectorAll('.contact-item').forEach(item => {
+                item.addEventListener('click', () => loadChat(item.dataset.phone));
+                item.querySelector('.delete-chat-btn').addEventListener('click', (e) => deleteChat(e, item.dataset.phone));
+            });
         });
     </script>
 </body>
