@@ -137,13 +137,21 @@
         }
 
         function appendMessage(message, isFromUser) {
-            const chatLogContainer = document.getElementById('chat-log-container');
+            const chatLogContainer = document.getElementById('chat-log-container'); // messages parent
+            const scrollContainer = document.getElementById('chat-log'); // the scrollable element
+
             const messageEl = document.createElement('div');
             messageEl.className = `message-bubble ${isFromUser ? 'message-in' : 'message-out'}`;
             messageEl.textContent = message;
+
             chatLogContainer.appendChild(messageEl);
-            scrollToBottom();
-        }
+
+    // scroll after layout completes
+            requestAnimationFrame(() => {
+                scrollContainer.scrollTop = scrollContainer.scrollHeight;
+            });
+            }
+
 
         function sendMessage() {
             const messageInput = document.getElementById('chat-message-input');
