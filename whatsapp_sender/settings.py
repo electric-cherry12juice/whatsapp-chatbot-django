@@ -163,8 +163,8 @@ ADMIN_PHONE_NUMBER = os.environ.get('ADMIN_PHONE_NUMBER')
 SESSION_COOKIE_AGE = 39600
 
 
-MEDIA_URL = '/' # The URL will be served from the root now, e.g., /staticfiles/image/file.jpg
-MEDIA_ROOT = STATIC_ROOT
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'staticfiles', 'media')
 
 STORAGES = {"staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

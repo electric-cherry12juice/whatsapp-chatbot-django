@@ -158,22 +158,25 @@
             const messageEl = document.createElement('div');
             messageEl.className = `message-bubble ${isFromUser ? 'message-in' : 'message-out'}`;
 
-    // --- THIS IS THE NEW LOGIC ---
-    // Check if the message is a text URL pointing to media
-            if (message.startsWith('http') || message.startsWith('/media/')) {
+    // THE FIX: Check for the correct media path
+            if (message && (message.startsWith('/media/') || message.startsWith('http'))) {
                 if (/\.(jpg|jpeg|png|gif|webp)$/i.test(message)) {
-                    messageEl.innerHTML = `<img src="${message}" style="max-width: 100%; border-radius: 5px; display: block;" alt="Image">`;
-                        } else if (/\.(mp3|ogg|amr|wav)$/i.test(message)) {
-                        messageEl.innerHTML = `<audio controls src="${message}" style="width: 100%; min-width: 250px;">Your browser does not support the audio element.</audio>`;
+            // Prepend /static for WhiteNoise if it's a local media file
+                    const src = message.startsWith('/media/') ? `/static${message}` : message;
+                    messageEl.innerHTML = `<img src="${src}" style="max-width: 100%; border-radius: 5px; display: block;" alt="Image">`;
+                } else if (/\.(mp3|ogg|amr|wav)$/i.test(message)) {
+                    const src = message.startsWith('/media/') ? `/static${message}` : message;
+                    messageEl.innerHTML = `<audio controls src="${src}" style="width: 100%; min-width: 250px;">Your browser does not support the audio element.</audio>`;
                 } else {
-            // It's a URL, but not an image/audio we can embed, so just show it as text
                     messageEl.textContent = message;
-        }
+                    }
             } else {
-        // It's a regular text message
                 messageEl.textContent = message;
                 }
-    // --- END OF NEW LOGIC ---
+    
+    chatLogContainer.appendChild(messageEl);
+    scrollToBottom();
+}
     
     chatLogContainer.appendChild(messageEl);
     scrollToBottom(); // This function should already exist in your script
