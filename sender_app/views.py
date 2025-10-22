@@ -212,7 +212,7 @@ def send_template_message(phone_number, template_name):
     version = os.environ.get('WHATSAPP_API_VERSION', 'v20.0')
     url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-    payload = {"messaging_product": "whatsapp", "to": phone_number, "type": "template", "template": {"name": template_name, "language": {"code": "en_US"}}}
+    payload = {"messaging_product": "whatsapp", "to": phone_number, "type": "template", "template": {"name": template_name, "language": {"code": "ru"}}}
     meta_api_logger.info(f"Starting new chat with {phone_number}. Payload: {json.dumps(payload)}")
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=15)
